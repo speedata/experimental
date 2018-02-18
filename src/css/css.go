@@ -2,6 +2,8 @@ package css
 
 import (
 	"fmt"
+
+	"github.com/PuerkitoBio/goquery"
 	"github.com/thejerf/css/scanner"
 )
 
@@ -33,6 +35,7 @@ type cssPage struct {
 }
 
 type CSS struct {
+	document     *goquery.Document
 	Stylesheet   sBlock
 	Fontfamilies map[string]FontFamily
 	Pages        map[string]cssPage
@@ -162,7 +165,7 @@ func (c *CSS) doPage(block *sBlock) {
 	c.Pages[selector] = pg
 }
 
-func (c *CSS) dothings() {
+func (c *CSS) processAtRules() {
 	c.Fontfamilies = make(map[string]FontFamily)
 	c.Pages = make(map[string]cssPage)
 	for _, atrule := range c.Stylesheet.ChildAtRules {
@@ -175,9 +178,15 @@ func (c *CSS) dothings() {
 	}
 }
 
-func Run(filename string) *CSS {
-	toks := parseCSSFile(filename)
+func Run(cssfilename, htmlfilename string) error {
+	var err error
+	toks := parseCSSFile(cssfilename)
 	c := CSS{Stylesheet: consumeBlock(toks)}
-	c.dothings()
-	return &c
+	c.processAtRules()
+	err = c.openHTMLFile(htmlfilename)
+	if err != nil {
+		return err
+	}
+	c.dumpTree()
+	return nil
 }

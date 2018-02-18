@@ -7,13 +7,14 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Run `main <name of stylesheet>`.")
+	if len(os.Args) < 3 {
+		fmt.Println("Run `main <name of stylesheet> <name of html file>`.")
 		os.Exit(0)
 	}
 
-	c := css.Run(os.Args[1])
-	if false {
-		fmt.Println(c)
+	err := css.Run(os.Args[1], os.Args[2])
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
 	}
 }
