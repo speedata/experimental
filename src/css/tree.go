@@ -17,6 +17,21 @@ func normalizespace(input string) string {
 	return strings.Join(strings.Fields(input), " ")
 }
 
+func stringValue(toks tokenstream) string {
+	ret := []string{}
+	for _, tok := range toks {
+		switch tok.Type {
+		case scanner.Ident, scanner.Dimension:
+			ret = append(ret, tok.Value)
+		case scanner.Percentage:
+			ret = append(ret, tok.Value+"%")
+		default:
+			w("unhandled token", tok)
+		}
+	}
+	return strings.Join(ret, " ")
+}
+
 func resolveStyle(i int, sel *goquery.Selection) {
 	a, b := sel.Attr("style")
 	if b {
@@ -49,8 +64,12 @@ func resolveStyle(i int, sel *goquery.Selection) {
 					colon = i + 1
 				case ";":
 					val = tokens[colon:i]
+
 					sel.SetAttr(key.String(), val.String())
 					start = i
+				default:
+					w("unknown delimiter", tok.Value)
+
 				}
 			}
 			i = i + 1
@@ -59,7 +78,7 @@ func resolveStyle(i int, sel *goquery.Selection) {
 			}
 		}
 		val = tokens[colon:i]
-		sel.SetAttr(key.String(), val.String())
+		sel.SetAttr(stringValue(key), stringValue(val))
 		sel.RemoveAttr("style")
 	}
 	sel.Children().Each(resolveStyle)
@@ -101,7 +120,7 @@ func (c *CSS) dumpTree() {
 		selector = strings.Replace(selector, " ", "", -1)
 		x := c.document.Find(selector)
 		for _, rule := range block.Rules {
-			x.SetAttr(rule.Key.String(), rule.Value.String())
+			x.SetAttr(stringValue(rule.Key), stringValue(rule.Value))
 		}
 	}
 	elt := c.document.Find(":root > body")
