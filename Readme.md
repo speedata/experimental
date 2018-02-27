@@ -13,3 +13,21 @@ This might turn out as a waste of time, so don't bother having a closer look.
 1. Run LuaTeX with this table as an input file
 1. Typeset according the rules given in the tree
 
+
+## Steps to get this running
+
+Beware! This is an experiment, totally pre alpha, and you might find out that it was a waste of time. But anyhow, here it is:
+
+1. Get this repository (`git clone https://github.com/speedata/experimental.git`), `cd experimental`
+1. Set the Go search path: `export GOPATH=$PWD/src/go`
+1. Get the dependencies `go get -d sc/sc`
+1. Compile with rake: `rake`
+1. Run the software: `bin/sc minimal.css minimal.html` with a really minimal css and html file
+
+You need: [Go](https://golang.org/), [Rake](https://github.com/ruby/rake) and [LuaTeX](https://www.tug.org/texlive/) installed. Once this gets more mature, I will provide ready to run packages.
+
+
+## Contact
+
+gundlach@speedata.de
+
