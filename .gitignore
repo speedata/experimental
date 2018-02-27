@@ -1,5 +1,10 @@
 pkg
-src/github.com/
-src/golang.org/
+src/go/src/github.com/
+src/go/src/golang.org/
 *.css
 *.html
+bin/sc
+main.log
+*.dot
+src/lua/viznodelist.lua
+

@@ -2,6 +2,9 @@ package css
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/thejerf/css/scanner"
@@ -29,9 +32,13 @@ type sBlock struct {
 }
 
 type cssPage struct {
-	pagearea  map[string][]qrule
-	margin    string
-	papersize string
+	pagearea     map[string][]qrule
+	margin       string
+	marginleft   string
+	marginright  string
+	margintop    string
+	marginbottom string
+	papersize    string
 }
 
 type CSS struct {
@@ -155,6 +162,14 @@ func (c *CSS) doPage(block *sBlock) {
 		switch v.Key.String() {
 		case "margin":
 			pg.margin = v.Value.String()
+		case "margin-top":
+			pg.margintop = v.Value.String()
+		case "margin-left":
+			pg.marginleft = v.Value.String()
+		case "margin-bottom":
+			pg.marginbottom = v.Value.String()
+		case "margin-right":
+			pg.marginright = v.Value.String()
 		case "size":
 			pg.papersize = v.Value.String()
 		}
@@ -178,15 +193,25 @@ func (c *CSS) processAtRules() {
 	}
 }
 
-func Run(cssfilename, htmlfilename string) error {
+func Run(cssfilename, htmlfilename string) (string, error) {
 	var err error
 	toks := parseCSSFile(cssfilename)
 	c := CSS{Stylesheet: consumeBlock(toks)}
 	c.processAtRules()
 	err = c.openHTMLFile(htmlfilename)
 	if err != nil {
-		return err
+		return "", err
 	}
-	c.dumpTree()
-	return nil
+	tmpdir, err := ioutil.TempDir("", "speedata")
+	if err != nil {
+		return "", err
+	}
+
+	outfile, err := os.Create(filepath.Join(tmpdir, "table.lua"))
+	if err != nil {
+		return "", err
+	}
+	c.dumpTree(outfile)
+	outfile.Close()
+	return tmpdir, nil
 }

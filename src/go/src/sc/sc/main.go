@@ -1,9 +1,15 @@
 package main
 
 import (
-	"css"
 	"fmt"
 	"os"
+
+	"css"
+	"ltx"
+)
+
+var (
+	basedir string
 )
 
 func main() {
@@ -12,9 +18,10 @@ func main() {
 		os.Exit(0)
 	}
 
-	err := css.Run(os.Args[1], os.Args[2])
+	tmpdir, err := css.Run(os.Args[1], os.Args[2])
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(-1)
 	}
+	ltx.Run(basedir, tmpdir)
 }

@@ -2,6 +2,7 @@ package css
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 
 var (
 	level int
+	out   io.Writer
 )
 
 func normalizespace(input string) string {
@@ -98,26 +100,27 @@ func fun(i int, sel *goquery.Selection) {
 	eltname := goquery.NodeName(sel)
 	if eltname == "#text" {
 		if txt := normalizespace(sel.Text()); txt != "" {
-			fmt.Printf("%s  %q,\n", lvindent, txt)
+			fmt.Fprintf(out, "%s  %q,\n", lvindent, txt)
 		}
 	} else {
-		fmt.Printf("%s { elementname = %q,\n", lvindent, goquery.NodeName(sel))
+		fmt.Fprintf(out, "%s { elementname = %q,\n", lvindent, goquery.NodeName(sel))
 		attributes := sel.Get(0).Attr
 		if len(attributes) > 0 {
-			fmt.Printf("%s   attributes = {", lvindent)
+			fmt.Fprintf(out, "%s   attributes = {", lvindent)
 			for _, v := range attributes {
-				fmt.Printf("[%q] = %q ,", v.Key, v.Val)
+				fmt.Fprintf(out, "[%q] = %q ,", v.Key, v.Val)
 			}
-			fmt.Println("},")
+			fmt.Fprintln(out, "},")
 		}
 		level++
 		sel.Contents().Each(fun)
 		level--
-		fmt.Println(lvindent, "},")
+		fmt.Fprintln(out, lvindent, "},")
 	}
 }
 
-func (c *CSS) dumpTree() {
+func (c *CSS) dumpTree(outfile io.Writer) {
+	out = outfile
 	c.document.Each(resolveStyle)
 
 	for _, block := range c.Stylesheet.Blocks {
@@ -129,43 +132,55 @@ func (c *CSS) dumpTree() {
 		}
 	}
 	elt := c.document.Find(":root > body")
-	fmt.Printf("csshtmltree = {\n")
+	fmt.Fprintf(out, "csshtmltree = {\n")
 	c.dump_fonts()
 	c.dump_pages()
 	elt.Each(fun)
-	fmt.Println("}")
+	fmt.Fprintln(out, "}")
 }
 
 func (c *CSS) dump_pages() {
-	fmt.Println("  pages = {")
+	fmt.Fprintln(out, "  pages = {")
 	for k, v := range c.Pages {
 		if k == "" {
 			k = "*"
 		}
-		fmt.Printf("    [%q] = {\n", k)
-		m1k, m1v, m2k, m2v, m3k, m3v, m4k, m4v := fourValues("margin", v.margin)
-		fmt.Printf("       [%q]=%q, [%q]=%q,  [%q]=%q,  [%q]=%q,\n", m1k, m1v, m2k, m2v, m3k, m3v, m4k, m4v)
-		wd, ht := papersize(v.papersize)
-		fmt.Printf("       width = %q, height = %q,\n", wd, ht)
-		for paname, parea := range v.pagearea {
-			fmt.Printf("       [%q] = {\n", paname)
-			for _, rule := range parea {
-				fmt.Printf("           [%q] = %q ,\n", rule.Key, stringValue(rule.Value))
-			}
-			fmt.Println("       },")
+		fmt.Fprintf(out, "    [%q] = {\n", k)
+		margintop, margintopvalue, marginleft, marginleftvalue, marginbottom, marginbottomvalue, marginright, marginrightvalue := fourValues("margin", v.margin)
+		if v.margintop != "" {
+			margintopvalue = v.margintop
 		}
-		fmt.Println("     },")
+		if v.marginleft != "" {
+			marginleftvalue = v.marginleft
+		}
+		if v.marginbottom != "" {
+			marginbottomvalue = v.marginbottom
+		}
+		if v.marginright != "" {
+			marginrightvalue = v.marginright
+		}
+		fmt.Fprintf(out, "       [%q]=%q, [%q]=%q,  [%q]=%q,  [%q]=%q,\n", margintop, margintopvalue, marginleft, marginleftvalue, marginbottom, marginbottomvalue, marginright, marginrightvalue)
+		wd, ht := papersize(v.papersize)
+		fmt.Fprintf(out, "       width = %q, height = %q,\n", wd, ht)
+		for paname, parea := range v.pagearea {
+			fmt.Fprintf(out, "       [%q] = {\n", paname)
+			for _, rule := range parea {
+				fmt.Fprintf(out, "           [%q] = %q ,\n", rule.Key, stringValue(rule.Value))
+			}
+			fmt.Fprintln(out, "       },")
+		}
+		fmt.Fprintln(out, "     },")
 	}
 
-	fmt.Println("  },")
+	fmt.Fprintln(out, "  },")
 }
 
 func (c *CSS) dump_fonts() {
-	fmt.Println(" fontfamilies = {")
+	fmt.Fprintln(out, " fontfamilies = {")
 	for name, ff := range c.Fontfamilies {
-		fmt.Printf("     [%q] = { regular = %q, bold=%q, bolditalic=%q, italic=%q },\n", name, ff.Regular, ff.Bold, ff.BoldItalic, ff.Italic)
+		fmt.Fprintf(out, "     [%q] = { regular = %q, bold=%q, bolditalic=%q, italic=%q },\n", name, ff.Regular, ff.Bold, ff.BoldItalic, ff.Italic)
 	}
-	fmt.Println(" },")
+	fmt.Fprintln(out, " },")
 }
 
 func fourValues(typ string, value string) (string, string, string, string, string, string, string, string) {
