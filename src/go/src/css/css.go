@@ -102,6 +102,8 @@ func consumeBlock(toks tokenstream) sBlock {
 				}
 				i = i + l
 				start = i + 1
+			default:
+				// w("unknown delimiter", t.Value)
 			}
 		}
 		i++
@@ -159,7 +161,7 @@ func (c *CSS) doPage(block *sBlock) {
 		case "size":
 			pg.papersize = v.Value.String()
 		default:
-			a := html.Attribute{Key: v.Key.String(), Val: v.Value.String()}
+			a := html.Attribute{Key: v.Key.String(), Val: stringValue(v.Value)}
 			pg.attributes = append(pg.attributes, a)
 		}
 	}

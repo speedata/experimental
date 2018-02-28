@@ -223,6 +223,44 @@ function boxit( box )
     return box
 end
 
+function draw_border( nodelist, attributes )
+    local box = node.hpack(nodelist)
+
+    local rule_width = 0.1
+    local wd = box.width                 / factor - rule_width
+    local ht = (box.height + box.depth)  / factor - rule_width
+    local dp = box.depth                 / factor - rule_width / 2
+
+    local wbox = node.new("whatsit","pdf_literal")
+    local rules = {}
+    rules[#rules + 1] = "q"
+    if attributes["border-top-style"] and attributes["border-top-style"] ~= "none" then
+        rule_width = tex.sp(attributes["border-top-width"] or "1pt") / factor
+        rules[#rules + 1] = string.format("0 G %g w %g %g m %g %g l s Q", rule_width, 0 , ht - dp  , -wd, ht - dp )
+    end
+    if attributes["border-right-style"] and attributes["border-right-style"] ~= "none" then
+        rule_width = tex.sp(attributes["border-right-width"] or "1pt") / factor
+        rules[#rules + 1] = string.format("0 G %g w %g %g m %g %g l s Q", rule_width, 0 , -dp , 0, ht - dp )
+    end
+    if attributes["border-bottom-style"] and attributes["border-bottom-style"] ~= "none" then
+        rule_width = tex.sp(attributes["border-bottom-width"] or "1pt") / factor
+        rules[#rules + 1] = string.format("0 G %g w %g %g m %g %g l s Q", rule_width, 0 , -dp, -wd, -dp)
+    end
+    if attributes["border-left-style"] and attributes["border-left-style"] ~= "none" then
+        rule_width = tex.sp(attributes["border-left-width"] or "1pt") / factor
+        rules[#rules + 1] = string.format("0 G %g w %g %g m %g %g l s Q", rule_width, -wd , -dp , -wd, ht - dp )
+    end
+
+    rules[#rules + 1] = "Q"
+    -- wbox.data = string.format("0.1 G %g w %g %g m %g %g l s Q", rule_width, 0 , -dp , 0, ht + dp)
+    wbox.data = table.concat(rules, " ")
+    wbox.mode = 0
+
+    local tmp = node.tail(box.list)
+    tmp.next = wbox
+    return box
+end
+
 
 local stylesstackmetatable = {
     __newindex = function( tbl, idx, value )
@@ -230,11 +268,21 @@ local stylesstackmetatable = {
         value.pos = #tbl
     end
 }
+
+inherited = {
+    width = true, curx = true, cury = true,
+    ["border-collapse"] = true, ["border-spacing"] = true, ["caption-side"] = true, ["color"] = true, ["direction"] = true, ["empty-cells"] = true, ["font-family"] = true, ["font-size"] = true, ["font-style"] = true, ["font-variant"] = true, ["font-weight"] = true, ["font"] = true, ["letter-spacing"] = true, ["line-height"] = true, ["list-style-image"] = true, ["list-style-position"] = true, ["list-style-type"] = true, ["list-style"] = true, ["orphans"] = true, ["quotes"] = true, ["richness"] = true, ["text-align"] = true, ["text-indent"] = true, ["text-transform"] = true, ["visibility"] = true, ["white-space"] = true, ["widows"] = true, ["word-spacing"] = true
+}
+
 local stylesstack = setmetatable({},stylesstackmetatable)
 local levelmt = {
     __index = function( tbl,idx )
         if tbl.pos == 1 then return nil end
-        return stylesstack[tbl.pos - 1][idx]
+        if inherited[idx] then
+            return stylesstack[tbl.pos - 1][idx]
+        else
+            return nil
+        end
     end
 }
 local styles = setmetatable({},levelmt)
@@ -281,7 +329,8 @@ function handle_element( elt )
 			nodelist = mknodes(v,fontnumber)
             nodelist = add_color(nodelist,styles["color"])
 			nodelist = do_linebreak(nodelist,styles.width)
-            output_at(boxit(nodelist), styles.curx,styles.cury)
+            nodelist = draw_border(nodelist,styles)
+            output_at(nodelist, styles.curx,styles.cury)
 
 		end
 	end

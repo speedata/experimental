@@ -5,6 +5,7 @@ import (
 	"golang.org/x/net/html"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -12,9 +13,18 @@ import (
 )
 
 var (
-	level int
-	out   io.Writer
+	level              int
+	out                io.Writer
+	dimen              *regexp.Regexp
+	style              *regexp.Regexp
+	topleftbottomright [4]string
 )
+
+func init() {
+	topleftbottomright = [...]string{"top", "left", "bottom", "right"}
+	dimen = regexp.MustCompile(`px|mm|cm|in|pt|pc|ch|em|ex|lh|rem|0`)
+	style = regexp.MustCompile(`none|hidden|dotted|dashed|solid|double|groove|ridge|inset|outset`)
+}
 
 func normalizespace(input string) string {
 	return strings.Join(strings.Fields(input), " ")
@@ -24,16 +34,20 @@ func stringValue(toks tokenstream) string {
 	ret := []string{}
 	for _, tok := range toks {
 		switch tok.Type {
-		case scanner.Ident, scanner.Dimension, scanner.String:
+		case scanner.Ident, scanner.Dimension, scanner.String, scanner.Number:
 			ret = append(ret, tok.Value)
 		case scanner.Percentage:
 			ret = append(ret, tok.Value+"%")
 		case scanner.Hash:
 			ret = append(ret, "#"+tok.Value)
+		case scanner.Function:
+			ret = append(ret, tok.Value+"(")
 		case scanner.Delim:
 			switch tok.Value {
 			case ";":
 				// ignore
+			case ",", ")":
+				ret = append(ret, tok.Value)
 			default:
 				w("unhandled delimiter", tok)
 			}
@@ -44,6 +58,7 @@ func stringValue(toks tokenstream) string {
 	return strings.Join(ret, " ")
 }
 
+// Recurse through the HTML tree and resolve the style attribute
 func resolveStyle(i int, sel *goquery.Selection) {
 	a, b := sel.Attr("style")
 	if b {
@@ -81,8 +96,9 @@ func resolveStyle(i int, sel *goquery.Selection) {
 					start = i
 				default:
 					w("unknown delimiter", tok.Value)
-
 				}
+			default:
+				w("unknown token type", tok.Type)
 			}
 			i = i + 1
 			if i == len(tokens) {
@@ -96,20 +112,62 @@ func resolveStyle(i int, sel *goquery.Selection) {
 	sel.Children().Each(resolveStyle)
 }
 
+func isDimension(str string) (bool, string) {
+	switch str {
+	case "thick":
+		return true, "2pt"
+	case "medium":
+		return true, "1pt"
+	case "thin":
+		return true, "0.5pt"
+	}
+	return dimen.MatchString(str), str
+}
+func isBorderStyle(str string) (bool, string) {
+	return style.MatchString(str), str
+}
+
 // Change "margin: 1cm;" into "margin-left: 1cm; margin-right: 1cm; ..."
 func resolveAttributes(attrs []html.Attribute) map[string]string {
 	resolved := make(map[string]string)
+	// attribute resolving must be in order of appearance. For example the following border-left-style has no effect:
+	//    border-left-style: dotted;
+	//    border-left: thick green;
+	// because the second line overrides the first line (style defaults to "none")
+
 	for _, attr := range attrs {
-		resolved[attr.Key] = attr.Val
-	}
-	if val, ok := resolved["margin"]; ok {
-		for _, margin := range []string{"margin-left", "margin-top", "margin-bottom", "margin-right"} {
-			if _, found := resolved[margin]; !found {
-				resolved[margin] = val
+		switch attr.Key {
+		case "margin":
+			for _, margin := range topleftbottomright {
+				resolved["margin-"+margin] = attr.Val
 			}
+		case "border":
+			// This does not work with colors such as rgb(1 , 2 , 4) which have spaces in them
+			for _, part := range strings.Split(attr.Val, " ") {
+				for _, border := range topleftbottomright {
+					if ok, str := isDimension(part); ok {
+						resolved["border-"+border+"-width"] = str
+					} else if ok, str := isBorderStyle(part); ok {
+						resolved["border-"+border+"-style"] = str
+					} else {
+						resolved["border-"+border+"-color"] = part
+					}
+				}
+			}
+		case "border-top", "border-right", "border-bottom", "border-left":
+			for _, part := range strings.Split(attr.Val, " ") {
+				if ok, str := isDimension(part); ok {
+					resolved[attr.Key+"-width"] = str
+				} else if ok, str := isBorderStyle(part); ok {
+					resolved[attr.Key+"-style"] = str
+				} else {
+					resolved[attr.Key+"-color"] = str
+				}
+			}
+		default:
+			resolved[attr.Key] = attr.Val
 		}
 	}
-	delete(resolved, "margin")
 	return resolved
 }
 
@@ -129,10 +187,6 @@ func dumpElement(i int, sel *goquery.Selection) {
 
 		}
 		fmt.Fprintln(out, "},")
-		// if len(attributes) > 0 {
-		// 	for _, v := range attributes {
-		// 	}
-		// }
 		level++
 		sel.Contents().Each(dumpElement)
 		level--
@@ -153,7 +207,8 @@ func (c *CSS) dumpTree(outfile io.Writer) {
 			x.SetAttr(stringValue(rule.Key), stringValue(rule.Value))
 		}
 	}
-	elt := c.document.Find(":root > body")
+	// The 8pt seems to be the default in browsers and copied to CSS paged media.
+	elt := c.document.Find(":root > body").SetAttr("margin", "8pt")
 	fmt.Fprintf(out, "csshtmltree = {\n")
 	c.dump_fonts()
 	c.dump_pages()
@@ -192,10 +247,6 @@ func (c *CSS) dump_fonts() {
 		fmt.Fprintf(out, "     [%q] = { regular = %q, bold=%q, bolditalic=%q, italic=%q },\n", name, ff.Regular, ff.Bold, ff.BoldItalic, ff.Italic)
 	}
 	fmt.Fprintln(out, " },")
-}
-
-func fourValues(typ string, value string) (string, string, string, string, string, string, string, string) {
-	return typ + "-top", value, typ + "-left", value, typ + "-bottom", value, typ + "-right", value
 }
 
 func papersize(typ string) (string, string) {
