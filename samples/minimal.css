@@ -1,0 +1,20 @@
+div.bla {
+    font-size: 14pt;
+    color: red;
+    text-align: justify;
+    width: 50%;
+    border: 1pt solid black;
+    margin-bottom: 2em;
+}
+
+body {
+	font-family: sans-serif;
+}
+
+@page {
+   size: a5;
+   margin-left: 2cm;
+   margin: 1cm;
+   border: 1pt solid;
+}
+

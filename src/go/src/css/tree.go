@@ -2,6 +2,7 @@ package css
 
 import (
 	"fmt"
+	"golang.org/x/net/html"
 	"io"
 	"os"
 	"strings"
@@ -95,7 +96,24 @@ func resolveStyle(i int, sel *goquery.Selection) {
 	sel.Children().Each(resolveStyle)
 }
 
-func fun(i int, sel *goquery.Selection) {
+// Change "margin: 1cm;" into "margin-left: 1cm; margin-right: 1cm; ..."
+func resolveAttributes(attrs []html.Attribute) map[string]string {
+	resolved := make(map[string]string)
+	for _, attr := range attrs {
+		resolved[attr.Key] = attr.Val
+	}
+	if val, ok := resolved["margin"]; ok {
+		for _, margin := range []string{"margin-left", "margin-top", "margin-bottom", "margin-right"} {
+			if _, found := resolved[margin]; !found {
+				resolved[margin] = val
+			}
+		}
+	}
+	delete(resolved, "margin")
+	return resolved
+}
+
+func dumpElement(i int, sel *goquery.Selection) {
 	lvindent := strings.Repeat(" ", level)
 	eltname := goquery.NodeName(sel)
 	if eltname == "#text" {
@@ -104,22 +122,26 @@ func fun(i int, sel *goquery.Selection) {
 		}
 	} else {
 		fmt.Fprintf(out, "%s { elementname = %q,\n", lvindent, goquery.NodeName(sel))
-		attributes := sel.Get(0).Attr
-		if len(attributes) > 0 {
-			fmt.Fprintf(out, "%s   attributes = {", lvindent)
-			for _, v := range attributes {
-				fmt.Fprintf(out, "[%q] = %q ,", v.Key, v.Val)
-			}
-			fmt.Fprintln(out, "},")
+		attributes := resolveAttributes(sel.Get(0).Attr)
+		fmt.Fprintf(out, "%s   attributes = {", lvindent)
+		for key, value := range attributes {
+			fmt.Fprintf(out, "[%q] = %q ,", key, value)
+
 		}
+		fmt.Fprintln(out, "},")
+		// if len(attributes) > 0 {
+		// 	for _, v := range attributes {
+		// 	}
+		// }
 		level++
-		sel.Contents().Each(fun)
+		sel.Contents().Each(dumpElement)
 		level--
 		fmt.Fprintln(out, lvindent, "},")
 	}
 }
 
 func (c *CSS) dumpTree(outfile io.Writer) {
+	c.document.Find(":root > body")
 	out = outfile
 	c.document.Each(resolveStyle)
 
@@ -135,7 +157,7 @@ func (c *CSS) dumpTree(outfile io.Writer) {
 	fmt.Fprintf(out, "csshtmltree = {\n")
 	c.dump_fonts()
 	c.dump_pages()
-	elt.Each(fun)
+	elt.Each(dumpElement)
 	fmt.Fprintln(out, "}")
 }
 
@@ -145,21 +167,10 @@ func (c *CSS) dump_pages() {
 		if k == "" {
 			k = "*"
 		}
-		fmt.Fprintf(out, "    [%q] = {\n", k)
-		margintop, margintopvalue, marginleft, marginleftvalue, marginbottom, marginbottomvalue, marginright, marginrightvalue := fourValues("margin", v.margin)
-		if v.margintop != "" {
-			margintopvalue = v.margintop
+		fmt.Fprintf(out, "    [%q] = {", k)
+		for k, v := range resolveAttributes(v.attributes) {
+			fmt.Fprintf(out, "[%q]=%q,", k, v)
 		}
-		if v.marginleft != "" {
-			marginleftvalue = v.marginleft
-		}
-		if v.marginbottom != "" {
-			marginbottomvalue = v.marginbottom
-		}
-		if v.marginright != "" {
-			marginrightvalue = v.marginright
-		}
-		fmt.Fprintf(out, "       [%q]=%q, [%q]=%q,  [%q]=%q,  [%q]=%q,\n", margintop, margintopvalue, marginleft, marginleftvalue, marginbottom, marginbottomvalue, marginright, marginrightvalue)
 		wd, ht := papersize(v.papersize)
 		fmt.Fprintf(out, "       width = %q, height = %q,\n", wd, ht)
 		for paname, parea := range v.pagearea {

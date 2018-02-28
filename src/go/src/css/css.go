@@ -2,7 +2,7 @@ package css
 
 import (
 	"fmt"
-	"io/ioutil"
+	"golang.org/x/net/html"
 	"os"
 	"path/filepath"
 
@@ -32,13 +32,9 @@ type sBlock struct {
 }
 
 type cssPage struct {
-	pagearea     map[string][]qrule
-	margin       string
-	marginleft   string
-	marginright  string
-	margintop    string
-	marginbottom string
-	papersize    string
+	pagearea   map[string][]qrule
+	attributes []html.Attribute
+	papersize  string
 }
 
 type CSS struct {
@@ -160,18 +156,11 @@ func (c *CSS) doPage(block *sBlock) {
 	}
 	for _, v := range block.Rules {
 		switch v.Key.String() {
-		case "margin":
-			pg.margin = v.Value.String()
-		case "margin-top":
-			pg.margintop = v.Value.String()
-		case "margin-left":
-			pg.marginleft = v.Value.String()
-		case "margin-bottom":
-			pg.marginbottom = v.Value.String()
-		case "margin-right":
-			pg.marginright = v.Value.String()
 		case "size":
 			pg.papersize = v.Value.String()
+		default:
+			a := html.Attribute{Key: v.Key.String(), Val: v.Value.String()}
+			pg.attributes = append(pg.attributes, a)
 		}
 	}
 	for _, rule := range block.ChildAtRules {
@@ -193,25 +182,20 @@ func (c *CSS) processAtRules() {
 	}
 }
 
-func Run(cssfilename, htmlfilename string) (string, error) {
+func Run(cssfilename, htmlfilename, tmpdir string) error {
 	var err error
 	toks := parseCSSFile(cssfilename)
 	c := CSS{Stylesheet: consumeBlock(toks)}
 	c.processAtRules()
 	err = c.openHTMLFile(htmlfilename)
 	if err != nil {
-		return "", err
+		return err
 	}
-	tmpdir, err := ioutil.TempDir("", "speedata")
-	if err != nil {
-		return "", err
-	}
-
 	outfile, err := os.Create(filepath.Join(tmpdir, "table.lua"))
 	if err != nil {
-		return "", err
+		return err
 	}
 	c.dumpTree(outfile)
 	outfile.Close()
-	return tmpdir, nil
+	return nil
 }

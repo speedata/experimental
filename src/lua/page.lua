@@ -23,10 +23,10 @@ function page.new( self,csspage)
     else
         s.width = tex.sp(csspage.width)
         s.height = tex.sp(csspage.height)
-        s.margin_left = tex.sp(csspage["margin-left"])
-        s.margin_top = tex.sp(csspage["margin-top"])
-        s.margin_right = tex.sp(csspage["margin-right"])
-        s.margin_bottom = tex.sp(csspage["margin-bottom"])
+        s.margin_left = tex.sp(csspage["margin-left"] or "1cm")
+        s.margin_top = tex.sp(csspage["margin-top"] or "1cm")
+        s.margin_right = tex.sp(csspage["margin-right"] or "1cm")
+        s.margin_bottom = tex.sp(csspage["margin-bottom"] or "1cm")
     end
   setmetatable(s, self)
   return s

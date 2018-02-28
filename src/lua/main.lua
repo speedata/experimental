@@ -6,6 +6,7 @@ tex.outputmode=1
 print()
 
 wd = os.getenv("SPWD")
+
 dofile(wd .. "/table.lua")
 local page = require("page")
 local fonts = require("fonts")
@@ -26,19 +27,68 @@ vlist_node     = node.id("vlist")
 
 
 local thispage = page:new(csshtmltree.pages["*"])
-local fontfamilies = csshtmltree.fontfamilies
+
+
+local fontfamilies = { ["sans-serif"] = { regular = {filename =  "texgyreheros-regular.otf" } } }
+
+for ffname,fftable in pairs(csshtmltree.fontfamilies) do
+    local tbl = {}
+    for k,v in pairs(fftable) do
+        if v ~= "" then
+            tbl[k] = {filename = v}
+        end
+    end
+    fontfamilies[ffname] = tbl
+end
+
+
+-- fontfamilies = {
+--   ["sans"] = {
+--     ["regular"] = {
+--       ["filename"] = "texgyreheros-regular.otf"
+--     },
+--   },
+--   ["Gentium"] = {
+--     ["regular"] = {
+--       ["filename"] = "Gentium/GentiumPlus-I.ttf"
+--     },
+--   },
+-- }
+
 local body = csshtmltree[1]
 
 
-function mknodes( text )
+function mknodes( text,fontnumber )
 	local head,last
 	for s in string.utfvalues(text) do
         n = node.new("glyph")
-        n.font = 1
+        n.font = fontnumber
         n.char = s
         head,last = node.insert_after(head,last,n)
 	end
 	return head
+end
+
+function add_color( nodelist, colorname )
+    local colorstring
+    if colorname == "red" then
+        colorstring = " 1 0 0 rg "
+    else
+        w("color not supported yet (remember, this is only a proof-of-concept!)")
+        return nodelist
+    end
+    local colstart = node.new("whatsit","pdf_colorstack")
+    local colstop  = node.new("whatsit","pdf_colorstack")
+    colstart.data  = colorstring
+    colstart.command = 1
+    colstart.stack = 0
+    colstop.data = ""
+    colstop.command = 2
+    colstop.stack = 0
+
+    nodelist = node.insert_before(nodelist,nodelist,colstart)
+    nodelist = node.insert_after(nodelist,node.tail(nodelist),colstop)
+    return nodelist
 end
 
 function add_glue( nodelist,head_or_tail,parameter)
@@ -85,16 +135,6 @@ function set_glue( gluenode, values )
     return n
 end
 
-local ok,f = fonts.define_font("texgyreheros-regular.otf",12 * 65536)
-if ok then
-    local num = font.define(f)
-    print("ok", num)
-else
-    print(f)
-end
-
-
-
 function finish_par( nodelist )
     assert(nodelist)
     node.slide(nodelist)
@@ -109,6 +149,20 @@ function finish_par( nodelist )
     n,last = add_glue(n,"tail",{ subtype = 15, width = 0, stretch = 2^16, stretch_order = 2})
 end
 
+function getfont( fontfamily, size )
+    if not size then print("Size not given") size = tex.sp("10pt")  end
+    -- w("getfont %q %q",tostring(fontfamily),tostring(size))
+    local fam = fontfamilies[fontfamily or "sans-serif"]
+    -- printtable("fam",fam.regular)
+    local ok, f = fonts.define_font(fam.regular.filename,tex.sp(size))
+    if ok then
+        local num = font.define(f)
+        fam.regular.fontnumber = num
+    else
+        print(f)
+    end
+    return fam.regular.fontnumber
+end
 
 function do_linebreak( nodelist,hsize )
     assert(nodelist,"No nodelist found for line breaking.")
@@ -193,6 +247,7 @@ styles.width =  thispage.width - thispage.margin_left - thispage.margin_right
 styles.height =  thispage.height - thispage.margin_top - thispage.margin_bottom
 styles.curx = thispage.margin_left
 styles.cury = thispage.margin_top
+styles["font-family"] = "sans-serif"
 
 stylesstack[#stylesstack + 1] = styles
 
@@ -222,7 +277,9 @@ function handle_element( elt )
 		if type(v) == "table" then
 			handle_element(v)
 		else
-			nodelist = mknodes(v)
+            local fontnumber = getfont(styles["font-family"],styles["font-size"])
+			nodelist = mknodes(v,fontnumber)
+            nodelist = add_color(nodelist,styles["color"])
 			nodelist = do_linebreak(nodelist,styles.width)
             output_at(boxit(nodelist), styles.curx,styles.cury)
 
@@ -238,6 +295,7 @@ thispage:addbox()
 tex.box[666] = thispage.pagebox
 
 tex.shipout(666)
+
 
 
 
