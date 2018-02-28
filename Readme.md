@@ -20,9 +20,9 @@ Beware! This is an experiment, totally pre alpha, and you might find out that it
 
 1. Get this repository (`git clone https://github.com/speedata/experimental.git`), `cd experimental`
 1. Update dependencies and compile with rake: `rake update`
-1. Run the software: `bin/sc minimal.css minimal.html` with a really minimal css and html file
+1. Run the software: `bin/sc <cssfile> <htmlfile>`
 
-You need: [Go](https://golang.org/), [Rake](https://github.com/ruby/rake) and [LuaTeX](https://www.tug.org/texlive/) installed. Once this gets more mature, I will provide ready to run packages.
+You need: [Go](https://golang.org/), [Rake](https://github.com/ruby/rake) and [LuaTeX](https://www.tug.org/texlive/) installed. Once this gets more mature, I will provide ready to run packages. (Actually the `Rakefile` is just provided for convenience, have a look inside it to find out how to compile the software without using Rake.)
 
 
 ## Contact
