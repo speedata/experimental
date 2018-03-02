@@ -141,6 +141,10 @@ func resolveAttributes(attrs []html.Attribute) map[string]string {
 			for _, margin := range topleftbottomright {
 				resolved["margin-"+margin] = attr.Val
 			}
+		case "padding":
+			for _, padding := range topleftbottomright {
+				resolved["padding-"+padding] = attr.Val
+			}
 		case "border":
 			// This does not work with colors such as rgb(1 , 2 , 4) which have spaces in them
 			for _, part := range strings.Split(attr.Val, " ") {
@@ -155,6 +159,9 @@ func resolveAttributes(attrs []html.Attribute) map[string]string {
 				}
 			}
 		case "border-top", "border-right", "border-bottom", "border-left":
+			resolved[attr.Key+"-width"] = "1pt"
+			resolved[attr.Key+"-style"] = "none"
+
 			for _, part := range strings.Split(attr.Val, " ") {
 				if ok, str := isDimension(part); ok {
 					resolved[attr.Key+"-width"] = str
@@ -195,7 +202,8 @@ func dumpElement(i int, sel *goquery.Selection) {
 }
 
 func (c *CSS) dumpTree(outfile io.Writer) {
-	c.document.Find(":root > body")
+	// The 8pt seems to be the default in browsers and copied to CSS paged media.
+	c.document.Find(":root > body").SetAttr("margin", "8pt")
 	out = outfile
 	c.document.Each(resolveStyle)
 
@@ -207,8 +215,7 @@ func (c *CSS) dumpTree(outfile io.Writer) {
 			x.SetAttr(stringValue(rule.Key), stringValue(rule.Value))
 		}
 	}
-	// The 8pt seems to be the default in browsers and copied to CSS paged media.
-	elt := c.document.Find(":root > body").SetAttr("margin", "8pt")
+	elt := c.document.Find(":root > body")
 	fmt.Fprintf(out, "csshtmltree = {\n")
 	c.dump_fonts()
 	c.dump_pages()

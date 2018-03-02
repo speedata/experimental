@@ -1,5 +1,7 @@
 tex.draftmode=0
 tex.enableprimitives('',tex.extraprimitives ())
+-- Lua 5.2 has table.unpack
+unpack = unpack or table.unpack
 
 -- tex.outputmode is only active with new primitives.
 tex.outputmode=1
@@ -11,8 +13,8 @@ dofile(wd .. "/table.lua")
 local page = require("page")
 local fonts = require("fonts")
 onecm = tex.sp("1cm")
--- factor = 65781
-factor = 2^16
+factor = 65781
+-- factor = 2^16
 
 
 glue_spec_node = node.id("glue_spec")
@@ -55,6 +57,38 @@ end
 --   },
 -- }
 
+--- Round the given `numb` to `idp` digits. From [the Lua wiki](http://lua-users.org/wiki/SimpleRound)
+function math.round(num, idp)
+  if idp and idp>0 then
+    local mult = 10^idp
+    return math.floor(num * mult + 0.5) / mult
+  end
+  return math.floor(num + 0.5)
+end
+
+--- Convert scaled point to postscript points,
+--- rounded to three digits after decimal point
+function sp_to_bp( sp )
+  return math.round(sp / factor , 3)
+end
+
+
+local orig_texsp = tex.sp
+function tex.sp( number_or_string )
+    if number_or_string == "0" then return 0 end
+  if type(number_or_string) == "string" then
+    local tmp = string.gsub(number_or_string,"(%d)pt","%1bp"):gsub("(%d)pp","%1pt")
+    local ret = { pcall(orig_texsp,tmp) }
+    if ret[1]==false then
+      w("Could not convert dimension %q",number_or_string)
+      return nil
+    end
+    return unpack(ret,2)
+  end
+  return orig_texsp(number_or_string)
+end
+
+
 local body = csshtmltree[1]
 
 
@@ -69,14 +103,23 @@ function mknodes( text,fontnumber )
 	return head
 end
 
-function add_color( nodelist, colorname )
+function color_pdf_string( colorname )
     local colorstring
     if colorname == "red" then
-        colorstring = " 1 0 0 rg "
+        colorstring = "1 0 0 rg 1 0 0 RG"
+    elseif colorname == "blue" then
+        colorstring = "0 0 1 rg 0 0 1 RG"
+    elseif colorname == "black" then
+        colorstring = "0 g 0 G"
     else
-        w("color not supported yet (remember, this is only a proof-of-concept!)")
-        return nodelist
+        w("color %q not supported yet (remember, this is only a proof-of-concept!)", tostring(colorname))
+        colorstring = "0 g 0 G"
     end
+    return colorstring
+end
+
+function add_color( nodelist, colorname )
+    local colorstring = color_pdf_string(colorname)
     local colstart = node.new("whatsit","pdf_colorstack")
     local colstop  = node.new("whatsit","pdf_colorstack")
     colstart.data  = colorstring
@@ -224,40 +267,121 @@ function boxit( box )
 end
 
 function draw_border( nodelist, attributes )
-    local box = node.hpack(nodelist)
+    local gluebordertop    = node.new(glue_node)
+    local glueborderright  = node.new(glue_node)
+    local glueborderbottom = node.new(glue_node)
+    local glueborderleft   = node.new(glue_node)
 
-    local rule_width = 0.1
-    local wd = box.width                 / factor - rule_width
-    local ht = (box.height + box.depth)  / factor - rule_width
-    local dp = box.depth                 / factor - rule_width / 2
 
-    local wbox = node.new("whatsit","pdf_literal")
-    local rules = {}
-    rules[#rules + 1] = "q"
+    local padding_top, padding_right, padding_bottom, padding_left = 0,0,0,0
+    if attributes["padding-top"] then padding_top = tex.sp(attributes["padding-top"]) end
+    if attributes["padding-right"] then padding_right = tex.sp(attributes["padding-right"]) end
+    if attributes["padding-bottom"] then padding_bottom = tex.sp(attributes["padding-bottom"]) end
+    if attributes["padding-left"] then padding_left = tex.sp(attributes["padding-left"]) end
+
+    local margin_top, margin_right, margin_bottom, margin_left = 0,0,0,0
+    if attributes["margin-top"] then margin_top = tex.sp(attributes["margin-top"]) end
+    if attributes["margin-right"] then margin_right = tex.sp(attributes["margin-right"]) end
+    if attributes["margin-bottom"] then margin_bottom = tex.sp(attributes["margin-bottom"]) end
+    if attributes["margin-left"] then margin_left = tex.sp(attributes["margin-left"]) end
+
+    local rule_width_top, rule_width_right, rule_width_bottom, rule_width_left = 0,0,0,0
     if attributes["border-top-style"] and attributes["border-top-style"] ~= "none" then
-        rule_width = tex.sp(attributes["border-top-width"] or "1pt") / factor
-        rules[#rules + 1] = string.format("0 G %g w %g %g m %g %g l s Q", rule_width, 0 , ht - dp  , -wd, ht - dp )
+        rule_width_top = tex.sp(attributes["border-top-width"] or 0)
     end
     if attributes["border-right-style"] and attributes["border-right-style"] ~= "none" then
-        rule_width = tex.sp(attributes["border-right-width"] or "1pt") / factor
-        rules[#rules + 1] = string.format("0 G %g w %g %g m %g %g l s Q", rule_width, 0 , -dp , 0, ht - dp )
+        rule_width_right = tex.sp(attributes["border-right-width"] or 0)
     end
     if attributes["border-bottom-style"] and attributes["border-bottom-style"] ~= "none" then
-        rule_width = tex.sp(attributes["border-bottom-width"] or "1pt") / factor
-        rules[#rules + 1] = string.format("0 G %g w %g %g m %g %g l s Q", rule_width, 0 , -dp, -wd, -dp)
+        rule_width_bottom = tex.sp(attributes["border-bottom-width"] or 0)
     end
     if attributes["border-left-style"] and attributes["border-left-style"] ~= "none" then
-        rule_width = tex.sp(attributes["border-left-width"] or "1pt") / factor
-        rules[#rules + 1] = string.format("0 G %g w %g %g m %g %g l s Q", rule_width, -wd , -dp , -wd, ht - dp )
+        rule_width_left = tex.sp(attributes["border-left-width"] or 0)
     end
 
+    gluebordertop.width    = rule_width_top    + padding_top + margin_top
+    glueborderright.width  = rule_width_right  + padding_right + margin_right
+    glueborderbottom.width = rule_width_bottom + padding_bottom + margin_bottom
+    glueborderleft.width   = rule_width_left   + padding_left + margin_left
+
+    local wd, wd_bp = nodelist.width,  nodelist.width   / factor
+    local ht, ht_bp = nodelist.height, nodelist.height  / factor
+    local dp, dp_bp = nodelist.depth,  nodelist.depth   / factor
+
+    local rule_width_bp, shift_up_bp, shift_right_bp
+    local colorstring = "0.5 G"
+
+    local rules = {}
+    rules[#rules + 1] = "q"
+    -- 4 trapezoids (1 for each border)
+    local x1, x2, x2, x4, y1, y2, y3, y4
+    if rule_width_top > 0 then
+        colorstring = color_pdf_string(attributes["border-top-color"])
+        x4 = margin_left / factor
+        x1 = (rule_width_left + margin_left) / factor
+        x2 = x1 + wd_bp + (padding_left + padding_right ) / factor
+        x3 = x2 + rule_width_right / factor
+
+        y1 = (rule_width_bottom + ht + dp + padding_bottom + padding_top + margin_bottom) / factor
+        y2 = y1
+        y3 = y2 + rule_width_top / factor
+        y4 = y3
+        rules[#rules + 1] = string.format("%s 0 w %g %g m %g %g l %g %g l %g %g l h f", colorstring,  x1,y1,x2,y2, x3,y3, x4,y4)
+    end
+    if attributes["border-right-style"] and attributes["border-right-style"] ~= "none" then
+        colorstring = color_pdf_string(attributes["border-right-color"])
+        x1 = ( rule_width_left + wd + padding_left + padding_right + margin_left) / factor
+        x2 = x1 + rule_width_right / factor
+        x3 = x2
+        x4 = x1
+
+        y2 = margin_bottom / factor
+        y1 = y2 + ( rule_width_bottom ) / factor
+        y4 = y1 + ht_bp + dp_bp + (padding_bottom + padding_top) / factor
+        y3 = y4 + rule_width_top / factor
+        rules[#rules + 1] = string.format("%s 0 w %g %g m %g %g l %g %g l %g %g l h f", colorstring,  x1,y1,x2,y2, x3,y3, x4,y4)
+    end
+    if attributes["border-bottom-style"] and attributes["border-bottom-style"] ~= "none" then
+        colorstring = color_pdf_string(attributes["border-bottom-color"])
+        x1 = margin_left / factor
+        x4 = x1 + rule_width_left / factor
+        x3 = x4 + wd_bp  + (padding_left + padding_right ) / factor
+        x2 = x3 + rule_width_right / factor
+
+        y1 = margin_bottom / factor
+        y2 = y1
+        y3 = y2 + rule_width_bottom / factor
+        y4 = y3
+        rules[#rules + 1] = string.format("%s 0 w %g %g m %g %g l %g %g l %g %g l h f", colorstring,  x1,y1,x2,y2, x3,y3, x4,y4)
+    end
+    if attributes["border-left-style"] and attributes["border-left-style"] ~= "none" then
+        colorstring = color_pdf_string(attributes["border-left-color"])
+        x1 = sp_to_bp(margin_left)
+        x4 = x1
+        x2 = x1 + sp_to_bp(rule_width_left)
+        x3 = x2
+
+        y1 = sp_to_bp(margin_bottom)
+        y2 = y1 + sp_to_bp(rule_width_bottom)
+        y3 = y2 + ht_bp + dp_bp + (padding_bottom + padding_top) / factor
+        y4 = y3 + rule_width_top / factor
+        rules[#rules + 1] = string.format("%s 0 w %g %g m %g %g l %g %g l %g %g l h f", colorstring,  x1,y1,x2,y2, x3,y3, x4,y4)
+    end
     rules[#rules + 1] = "Q"
-    -- wbox.data = string.format("0.1 G %g w %g %g m %g %g l s Q", rule_width, 0 , -dp , 0, ht + dp)
+
+
+    local wbox = node.new("whatsit","pdf_literal")
     wbox.data = table.concat(rules, " ")
     wbox.mode = 0
 
-    local tmp = node.tail(box.list)
-    tmp.next = wbox
+    nodelist = node.insert_before(nodelist,nodelist,glueborderleft)
+    nodelist = node.insert_after(nodelist,node.tail(nodelist),glueborderright)
+    local box = node.hpack(nodelist)
+    box = node.insert_before(box,box,gluebordertop)
+    box = node.insert_after(box,node.tail(box),glueborderbottom)
+    box = node.insert_after(box,node.tail(box),wbox)
+    box = node.vpack(box)
+
     return box
 end
 
@@ -270,7 +394,7 @@ local stylesstackmetatable = {
 }
 
 inherited = {
-    width = true, curx = true, cury = true,
+    width = false, curx = true, cury = true,
     ["border-collapse"] = true, ["border-spacing"] = true, ["caption-side"] = true, ["color"] = true, ["direction"] = true, ["empty-cells"] = true, ["font-family"] = true, ["font-size"] = true, ["font-style"] = true, ["font-variant"] = true, ["font-weight"] = true, ["font"] = true, ["letter-spacing"] = true, ["line-height"] = true, ["list-style-image"] = true, ["list-style-position"] = true, ["list-style-type"] = true, ["list-style"] = true, ["orphans"] = true, ["quotes"] = true, ["richness"] = true, ["text-align"] = true, ["text-indent"] = true, ["text-transform"] = true, ["visibility"] = true, ["white-space"] = true, ["widows"] = true, ["word-spacing"] = true
 }
 
@@ -295,6 +419,7 @@ styles.width =  thispage.width - thispage.margin_left - thispage.margin_right
 styles.height =  thispage.height - thispage.margin_top - thispage.margin_bottom
 styles.curx = thispage.margin_left
 styles.cury = thispage.margin_top
+styles.color = "black"
 styles["font-family"] = "sans-serif"
 
 stylesstack[#stylesstack + 1] = styles
@@ -308,21 +433,34 @@ function handle_element( elt )
 			styles[i] = v
 		end
 	end
-    local ml,mt = styles["margin-left"], styles["margin-top"]
-    if ml then styles.curx = styles.curx + tex.sp(ml) end
-    if mt then styles.cury = styles.cury + tex.sp(mt) end
 
-	local wd = styles.width
-	if not tonumber(wd) then
+    local margin_left   = styles["margin-left"]  or 0
+    local margin_right  = styles["margin-right"] or 0
+    local margin_top    = styles["margin-top"] or 0
+    local padding_left  = styles["padding-left"]       or 0
+    local padding_right = styles["padding-right"]      or 0
+    local border_left   = styles["border-left-width"]  or 0
+    local border_top    = styles["border-top-width"]   or 0
+    local border_right  = styles["border-right-width"] or 0
+
+    local wd = styles.width or "auto"
+    if wd == "auto" then
+        styles.width = prevwd
+        styles.width = styles.width - tex.sp(margin_left) - tex.sp(margin_right) - tex.sp(padding_left) - tex.sp(padding_right) - tex.sp(border_left) - tex.sp(border_right)
+	elseif not tonumber(wd) then
 		local percent = string.match(wd,"(.*)%%")
 		if percent then
 			wd = prevwd * tonumber(percent) / 100
 			styles.width = wd
 		end
+    else
+        w("unhandled width")
 	end
 	-- w("element %q  width  %gcm",elt.elementname or "<text>" ,styles.width  / onecm)
 	for i,v in ipairs(elt) do
 		if type(v) == "table" then
+            styles.curx = styles.curx + tex.sp(margin_left) + tex.sp(border_left)
+            styles.cury = styles.cury + tex.sp(margin_top)  + tex.sp(border_top)
 			handle_element(v)
 		else
             local fontnumber = getfont(styles["font-family"],styles["font-size"])
@@ -330,6 +468,7 @@ function handle_element( elt )
             nodelist = add_color(nodelist,styles["color"])
 			nodelist = do_linebreak(nodelist,styles.width)
             nodelist = draw_border(nodelist,styles)
+            nodelist = boxit(nodelist)
             output_at(nodelist, styles.curx,styles.cury)
 
 		end
@@ -339,12 +478,16 @@ end
 
 handle_element(body)
 
+-- last page
+-- draw debugging rule
+-- printtable("body",body)
+function shipout()
+    thispage:addbox()
+    tex.box[666] = thispage.pagebox
+    tex.shipout(666)
+end
 
-thispage:addbox()
-tex.box[666] = thispage.pagebox
-
-tex.shipout(666)
-
+shipout()
 
 
 

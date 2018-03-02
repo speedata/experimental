@@ -74,10 +74,13 @@ func findClosingBrace(toks tokenstream) int {
 // and the selector will be added later on
 func consumeBlock(toks tokenstream) sBlock {
 	// This is the whole block between the opening { and closing }
+	b := sBlock{}
+	if len(toks) == 0 {
+		return b
+	}
 	i := 0
 	start := 0
 	colon := 0
-	b := sBlock{}
 	for {
 		// There are only two cases: a key-value rule or something with
 		// curly braces
