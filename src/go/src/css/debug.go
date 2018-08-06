@@ -68,9 +68,12 @@ func (c *CSS) dump() {
 			}
 		}
 	}
-	for _, block := range c.Stylesheet.Blocks {
-		w("-------")
-		w(block)
+	for _, stylesheet := range c.Stylesheet {
+		for _, block := range stylesheet.Blocks {
+			w("-------")
+			w(block)
+		}
+		w("++++++++++")
+
 	}
-	w("++++++++++")
 }

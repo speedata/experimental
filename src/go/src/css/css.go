@@ -39,7 +39,7 @@ type cssPage struct {
 
 type CSS struct {
 	document     *goquery.Document
-	Stylesheet   sBlock
+	Stylesheet   []sBlock
 	Fontfamilies map[string]FontFamily
 	Pages        map[string]cssPage
 }
@@ -72,7 +72,7 @@ func findClosingBrace(toks tokenstream) int {
 
 // Get the contents of a block. The name (in case of an at-rule)
 // and the selector will be added later on
-func consumeBlock(toks tokenstream) sBlock {
+func consumeBlock(toks tokenstream, inblock bool) sBlock {
 	// This is the whole block between the opening { and closing }
 	b := sBlock{}
 	if len(toks) == 0 {
@@ -87,14 +87,17 @@ func consumeBlock(toks tokenstream) sBlock {
 		if t := toks[i]; t.Type == scanner.Delim {
 			switch t.Value {
 			case ":":
-				colon = i
+				if inblock {
+					colon = i
+				}
 			case ";":
 				b.Rules = append(b.Rules, qrule{Key: toks[start:colon], Value: toks[colon+1 : i]})
+				colon = 0
 				start = i + 1
 			case "{":
 				var nb sBlock
 				l := findClosingBrace(toks[i+1:])
-				nb = consumeBlock(toks[i+1 : i+l])
+				nb = consumeBlock(toks[i+1:i+l], true)
 				if toks[start].Type == scanner.AtKeyword {
 					nb.Name = toks[start].Value
 					b.ChildAtRules = append(b.ChildAtRules, &nb)
@@ -113,6 +116,9 @@ func consumeBlock(toks tokenstream) sBlock {
 		if i == len(toks) {
 			break
 		}
+	}
+	if colon > 0 {
+		b.Rules = append(b.Rules, qrule{Key: toks[start:colon], Value: toks[colon+1 : len(toks)]})
 	}
 	return b
 }
@@ -177,20 +183,25 @@ func (c *CSS) doPage(block *sBlock) {
 func (c *CSS) processAtRules() {
 	c.Fontfamilies = make(map[string]FontFamily)
 	c.Pages = make(map[string]cssPage)
-	for _, atrule := range c.Stylesheet.ChildAtRules {
-		switch atrule.Name {
-		case "font-face":
-			c.doFontFace(atrule.Rules)
-		case "page":
-			c.doPage(atrule)
+	for _, stylesheet := range c.Stylesheet {
+		for _, atrule := range stylesheet.ChildAtRules {
+			switch atrule.Name {
+			case "font-face":
+				c.doFontFace(atrule.Rules)
+			case "page":
+				c.doPage(atrule)
+			}
 		}
+
 	}
 }
 
 func Run(cssfilename, htmlfilename, tmpdir string) error {
 	var err error
-	toks := parseCSSFile(cssfilename)
-	c := CSS{Stylesheet: consumeBlock(toks)}
+	c := CSS{}
+	c.Stylesheet = append(c.Stylesheet, consumeBlock(parseCSSFile("defaultstyles.css"), false))
+	c.Stylesheet = append(c.Stylesheet, consumeBlock(parseCSSFile(cssfilename), false))
+
 	c.processAtRules()
 	err = c.openHTMLFile(htmlfilename)
 	if err != nil {

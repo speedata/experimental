@@ -1,5 +1,14 @@
 tex.draftmode=0
 tex.enableprimitives('',tex.extraprimitives ())
+
+-- A very large length
+maxdimen = 1073741823
+
+tex.hfuzz    = maxdimen
+tex.vfuzz    = maxdimen
+tex.hbadness = maxdimen
+tex.vbadness = maxdimen
+
 -- Lua 5.2 has table.unpack
 unpack = unpack or table.unpack
 
@@ -28,10 +37,13 @@ hlist_node     = node.id("hlist")
 vlist_node     = node.id("vlist")
 
 
-local thispage = page:new(csshtmltree.pages["*"])
 
-
-local fontfamilies = { ["sans-serif"] = { regular = {filename =  "texgyreheros-regular.otf" } } }
+local fontfamilies = { ["sans-serif"] = {
+    regular = {filename =  "texgyreheros-regular.otf" },
+    bold   = {filename =  "texgyreheros-bold.otf" },
+    italic = {filename =  "texgyreheros-italic.otf" },
+  }
+}
 
 for ffname,fftable in pairs(csshtmltree.fontfamilies) do
     local tbl = {}
@@ -76,28 +88,49 @@ end
 local orig_texsp = tex.sp
 function tex.sp( number_or_string )
     if number_or_string == "0" then return 0 end
-  if type(number_or_string) == "string" then
-    local tmp = string.gsub(number_or_string,"(%d)pt","%1bp"):gsub("(%d)pp","%1pt")
-    local ret = { pcall(orig_texsp,tmp) }
-    if ret[1]==false then
-      w("Could not convert dimension %q",number_or_string)
-      return nil
+    if type(number_or_string) == "string" then
+        if string.match(number_or_string, "em$") then
+            local amount = string.gsub(number_or_string, "^(.*)r?em$","%1")
+            return tonumber(amount) * tex.sp("12pt")
+        end
+        number_or_string = string.gsub(number_or_string,"(%d)pt","%1bp"):gsub("(%d)pp","%1pt")
+        local ret = { pcall(orig_texsp,number_or_string) }
+        if ret[1]==false then
+            w("Could not convert dimension %q",number_or_string)
+            return nil
+        end
+        return unpack(ret,2)
     end
-    return unpack(ret,2)
-  end
-  return orig_texsp(number_or_string)
+    return orig_texsp(number_or_string)
 end
 
 
 local body = csshtmltree[1]
 
+fonttable = {}
 
-function mknodes( text,fontnumber )
+function mknodes( text, styles )
+    local fontnum = getfont(styles)
+    local tbl      = fonttable[fontnum]
+
+    local space    = tbl.parameters.space
+    local shrink   = tbl.parameters.space_shrink
+    local stretch  = tbl.parameters.space_stretch
+
+    local match = unicode.utf8.match
 	local head,last
 	for s in string.utfvalues(text) do
-        n = node.new("glyph")
-        n.font = fontnumber
-        n.char = s
+        local char = unicode.utf8.char(s)
+        if match(char,"^%s$") then -- Space
+            n = node.new(glue_node)
+            n.width = space
+            n.shrink = shrink
+            n.stretch = stretch
+        else
+            n = node.new("glyph")
+            n.font = fontnum
+            n.char = s
+        end
         head,last = node.insert_after(head,last,n)
 	end
 	return head
@@ -192,19 +225,44 @@ function finish_par( nodelist )
     n,last = add_glue(n,"tail",{ subtype = 15, width = 0, stretch = 2^16, stretch_order = 2})
 end
 
-function getfont( fontfamily, size )
-    if not size then print("Size not given") size = tex.sp("10pt")  end
-    -- w("getfont %q %q",tostring(fontfamily),tostring(size))
+
+function getfont(styles)
+    local family, size, weight, style =  styles["font-family"],styles["font-size"], styles["font-weight"],styles["font-style"]
+
+    if not size then
+        print("Size not given")
+        size = tex.sp("12pt")
+    else
+        size = tex.sp(size)
+    end
+    local fontselector = "regular"
+    if weight == "bold" then
+        if style == "normal" then
+            fontselector = "bold"
+        elseif style == "italic" then
+            fontselector = "bolditalic"
+        end
+    elseif weight == "normal" then
+        if style == "italic" then
+            fontselector = "italic"
+        end
+    end
+
     local fam = fontfamilies[fontfamily or "sans-serif"]
-    -- printtable("fam",fam.regular)
-    local ok, f = fonts.define_font(fam.regular.filename,tex.sp(size))
+    if fam[fontselector] and fam[fontselector].fontnumber then
+        return fam[fontselector].fontnumber
+    end
+
+    -- printtable("fam",fam[fontselector])
+    local ok, f = fonts.define_font(fam[fontselector].filename,tex.sp(size))
     if ok then
         local num = font.define(f)
-        fam.regular.fontnumber = num
+        fam[fontselector].fontnumber = num
+        fonttable[num] = f
     else
         print(f)
     end
-    return fam.regular.fontnumber
+    return fam[fontselector].fontnumber
 end
 
 function do_linebreak( nodelist,hsize )
@@ -213,7 +271,7 @@ function do_linebreak( nodelist,hsize )
     parameters = parameters or {}
 
     local pdfignoreddimen = -65536000
-
+    tex.baselineskip = tex.sp("12pt")
     local default_parameters = {
         hsize = hsize,
         emergencystretch = 0.1 * hsize,
@@ -235,19 +293,6 @@ function do_linebreak( nodelist,hsize )
 	return node.vpack(j)
 end
 
-
--- x,y in scaled points, top left = 0,0
-function output_at( nodelist,x,y )
-    local glue_horizontal, glue_vertical = node.new(glue_node), node.new(glue_node)
-    glue_horizontal.width = x
-    local box
-    box = node.insert_after(glue_horizontal, glue_horizontal, nodelist)
-    box = node.hpack(box)
-    glue_vertical.width = y
-    box = node.insert_after(glue_vertical,glue_vertical,box)
-    box = node.vpack(box)
-    thispage.pagebox = box
-end
 
 function boxit( box )
     local box = node.hpack(box)
@@ -271,7 +316,10 @@ function draw_border( nodelist, attributes )
     local glueborderright  = node.new(glue_node)
     local glueborderbottom = node.new(glue_node)
     local glueborderleft   = node.new(glue_node)
-
+    node.set_attribute(gluebordertop,    010,1)
+    node.set_attribute(glueborderright,  010,2)
+    node.set_attribute(glueborderbottom, 010,3)
+    node.set_attribute(glueborderleft,   010,4)
 
     local padding_top, padding_right, padding_bottom, padding_left = 0,0,0,0
     if attributes["padding-top"] then padding_top = tex.sp(attributes["padding-top"]) end
@@ -364,25 +412,38 @@ function draw_border( nodelist, attributes )
         y1 = sp_to_bp(margin_bottom)
         y2 = y1 + sp_to_bp(rule_width_bottom)
         y3 = y2 + ht_bp + dp_bp + (padding_bottom + padding_top) / factor
-        y4 = y3 + rule_width_top / factor
+        y4 = y3 + sp_to_bp(rule_width_top)
         rules[#rules + 1] = string.format("%s 0 w %g %g m %g %g l %g %g l %g %g l h f", colorstring,  x1,y1,x2,y2, x3,y3, x4,y4)
     end
     rules[#rules + 1] = "Q"
-
-
-    local wbox = node.new("whatsit","pdf_literal")
-    wbox.data = table.concat(rules, " ")
-    wbox.mode = 0
 
     nodelist = node.insert_before(nodelist,nodelist,glueborderleft)
     nodelist = node.insert_after(nodelist,node.tail(nodelist),glueborderright)
     local box = node.hpack(nodelist)
     box = node.insert_before(box,box,gluebordertop)
     box = node.insert_after(box,node.tail(box),glueborderbottom)
-    box = node.insert_after(box,node.tail(box),wbox)
+    if #rules > 2 then
+        local wbox = node.new("whatsit","pdf_literal")
+        wbox.data = table.concat(rules, " ")
+        wbox.mode = 0
+
+        box = node.insert_after(box,node.tail(box),wbox)
+    end
     box = node.vpack(box)
 
     return box
+end
+
+function isspace( str )
+    if string.match(str,"^%s*$") then return true else return false end
+end
+
+function remove_space_beginning( str )
+    return string.gsub(str, "^%s*", "")
+end
+
+function remove_space_end( str )
+    return string.gsub(str, "%s*$", "")
 end
 
 
@@ -394,7 +455,7 @@ local stylesstackmetatable = {
 }
 
 inherited = {
-    width = false, curx = true, cury = true,
+    width = false, calculated_width = true,
     ["border-collapse"] = true, ["border-spacing"] = true, ["caption-side"] = true, ["color"] = true, ["direction"] = true, ["empty-cells"] = true, ["font-family"] = true, ["font-size"] = true, ["font-style"] = true, ["font-variant"] = true, ["font-weight"] = true, ["font"] = true, ["letter-spacing"] = true, ["line-height"] = true, ["list-style-image"] = true, ["list-style-position"] = true, ["list-style-type"] = true, ["list-style"] = true, ["orphans"] = true, ["quotes"] = true, ["richness"] = true, ["text-align"] = true, ["text-indent"] = true, ["text-transform"] = true, ["visibility"] = true, ["white-space"] = true, ["widows"] = true, ["word-spacing"] = true
 }
 
@@ -403,6 +464,7 @@ local levelmt = {
     __index = function( tbl,idx )
         if tbl.pos == 1 then return nil end
         if inherited[idx] then
+            -- w("idx %q",tostring(idx))
             return stylesstack[tbl.pos - 1][idx]
         else
             return nil
@@ -410,23 +472,25 @@ local levelmt = {
     end
 }
 local styles = setmetatable({},levelmt)
-
-tex.pagewidth = thispage.width
-tex.pageheight = thispage.height
-
-
-styles.width =  thispage.width - thispage.margin_left - thispage.margin_right
-styles.height =  thispage.height - thispage.margin_top - thispage.margin_bottom
-styles.curx = thispage.margin_left
-styles.cury = thispage.margin_top
 styles.color = "black"
 styles["font-family"] = "sans-serif"
+styles["font-size"] = "12pt"
+styles["font-weight"] = "normal"
+styles["font-style"] = "normal"
+
 
 stylesstack[#stylesstack + 1] = styles
 
-function handle_element( elt )
-	local styles = setmetatable({},levelmt)
-	local prevwd = stylesstack[#stylesstack].width
+local MVERTICAL, MHORIZONTAL = 1,2
+
+local mode = {MVERTICAL}
+
+
+
+function do_inline_block( elt )
+    local ret = nil
+    local styles = setmetatable({},levelmt)
+
 	stylesstack[#stylesstack + 1] = styles
 	if elt.attributes then
 		for i,v in pairs(elt.attributes) do
@@ -434,60 +498,174 @@ function handle_element( elt )
 		end
 	end
 
-    local margin_left   = styles["margin-left"]  or 0
-    local margin_right  = styles["margin-right"] or 0
-    local margin_top    = styles["margin-top"] or 0
-    local padding_left  = styles["padding-left"]       or 0
-    local padding_right = styles["padding-right"]      or 0
-    local border_left   = styles["border-left-width"]  or 0
-    local border_top    = styles["border-top-width"]   or 0
-    local border_right  = styles["border-right-width"] or 0
+    if #elt == 0 then
+        ret = mknodes("X")
+    end
+    local doremove = {}
+    local child
+    for i=1,#elt do
+        child = elt[i]
+        if type(child) == "table" then
+            local childname = child.elementname
+            if childname == "p" or childname == "img" or childname == "b" or childname == "li"  then
+                mode[#mode + 1] = MHORIZONTAL
+            else
+                mode[#mode + 1] = MVERTICAL
+            end
+            local nodes = do_inline_block(child)
+            table.remove(mode)
+            local tail = node.tail(ret)
+            if tail then
+                tail.next = nodes
+                nodes.prev = tail
+            else
+                ret = nodes
+            end
+        elseif type(child) == "string" then
+            if mode[#mode] == MHORIZONTAL and mode[#mode - 1] == MVERTICAL then
+                if i == 1 then
+                    child = remove_space_beginning(child)
+                elseif i == #elt then
+                    child = remove_space_end(child)
+                end
+            end
+            -- in vertical mode, empty strings don't start a horizontal list
+            if not(mode[#mode] == MVERTICAL and isspace(child)) then
+                local nodes = mknodes(child,styles)
+                local tail = node.tail(ret)
+                if tail then
+                    tail.next = nodes
+                    nodes.prev = tail
+                else
+                    ret = nodes
+                end
+            else
+                -- we need to remove the empty spaces
+                doremove[#doremove + 1] = i
+            end
+        else
+            w("type %q not handled",type(child))
+        end
+    end
 
-    local wd = styles.width or "auto"
-    if wd == "auto" then
-        styles.width = prevwd
-        styles.width = styles.width - tex.sp(margin_left) - tex.sp(margin_right) - tex.sp(padding_left) - tex.sp(padding_right) - tex.sp(border_left) - tex.sp(border_right)
-	elseif not tonumber(wd) then
-		local percent = string.match(wd,"(.*)%%")
-		if percent then
-			wd = prevwd * tonumber(percent) / 100
-			styles.width = wd
-		end
-    else
-        w("unhandled width")
-	end
-	-- w("element %q  width  %gcm",elt.elementname or "<text>" ,styles.width  / onecm)
-	for i,v in ipairs(elt) do
-		if type(v) == "table" then
-            styles.curx = styles.curx + tex.sp(margin_left) + tex.sp(border_left)
-            styles.cury = styles.cury + tex.sp(margin_top)  + tex.sp(border_top)
-			handle_element(v)
-		else
-            local fontnumber = getfont(styles["font-family"],styles["font-size"])
-			nodelist = mknodes(v,fontnumber)
-            nodelist = add_color(nodelist,styles["color"])
-			nodelist = do_linebreak(nodelist,styles.width)
-            nodelist = draw_border(nodelist,styles)
-            nodelist = boxit(nodelist)
-            output_at(nodelist, styles.curx,styles.cury)
+    for i=#doremove,1,-1 do
+        table.remove(elt,doremove[i])
+    end
+    local parentmode = mode[#mode - 1]
 
-		end
-	end
-	table.remove(stylesstack)
+    if parentmode == MVERTICAL then
+        if mode[#mode] == MHORIZONTAL then
+            for i=1,#elt do
+                elt[i] = nil
+            end
+        end
+        elt.nodelist = ret
+        ret = nil
+    end
+
+    table.remove(stylesstack)
+    return ret
 end
 
-handle_element(body)
+function set_calculated_width( styles )
+    local sw = styles.width
+    -- w("styles.width %q",tostring(styles.width))
+    if string.match(sw,"%d+%%$") then
+        -- xx percent
+        local amount = string.match(sw,"(%d+)%%$")
+        styles.calculated_width = math.round(styles.calculated_width * tonumber(amount) / 100 ,0)
+    elseif tex.sp(sw) then
+        -- a length
+        styles.calculated_width = tex.sp(sw)
+    end
+end
 
--- last page
--- draw debugging rule
--- printtable("body",body)
-function shipout()
-    thispage:addbox()
-    tex.box[666] = thispage.pagebox
+-- two adjacent box elements collapse their margin
+-- https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Box_Model/Mastering_margin_collapsing
+function fixup_things( elt )
+    for i=1,#elt - 1 do
+        curelement = elt[i]
+        nextelt = elt[i + 1]
+        if nextelt then
+            local inbetween = math.round(math.max(tex.sp(curelement.attributes["margin-bottom"]),tex.sp(nextelt.attributes["margin-top"])) / 2)
+            curelement.attributes["margin-bottom"] = inbetween
+            nextelt.attributes["margin-top"] = inbetween
+        end
+    end
+end
+
+local thispage
+local mvl = node.new("vlist")
+
+function add_to_mvl( vlist )
+    mvl.list = node.insert_after(mvl.list, node.tail(mvl.list),vlist)
+end
+
+function output_p( elt,wd )
+    local vlist = do_linebreak(elt.nodelist,wd)
+    vlist = draw_border(vlist,elt.attributes)
+    add_to_mvl(vlist)
+end
+
+function do_output( elt )
+    local styles = setmetatable({},levelmt)
+    stylesstack[#stylesstack + 1] = styles
+    if thispage == nil then
+        thispage = page:new(csshtmltree.pages["*"])
+        tex.pagewidth = thispage.width
+        tex.pageheight = thispage.height
+        styles.calculated_width = thispage.width - thispage.margin_left - thispage.margin_right
+    end
+
+    if elt.attributes then
+        for i,v in pairs(elt.attributes) do
+            styles[i] = v
+        end
+    end
+    calculated_width = set_calculated_width(styles)
+
+    local curelement
+    for i=1,#elt do
+        curelement = elt[i]
+        if type(curelement) == "table" then
+            if curelement.elementname == "p" then
+                output_p(curelement,styles.calculated_width)
+            end
+        end
+    end
+    table.remove(stylesstack)
+end
+
+do_inline_block(body)
+fixup_things(body)
+do_output(body)
+
+
+if thispage then
+    local objects = {}
+
+    objects[1] = mvl.head
+    objects[2] = mvl.head.next
+    objects[1].next = nil
+    objects[2].prev = nil
+
+
+    local left = set_glue(nil,{width = thispage.margin_left})
+    local top  = set_glue(nil,{width = thispage.margin_top})
+
+    node.set_attribute(left,11,1)
+    node.set_attribute(top,11,2)
+    vlist = node.insert_after(objects[1],objects[1],objects[2])
+    vlist = node.vpack(vlist)
+
+    left = node.insert_after(left,left,vlist)
+    left = node.hpack(left)
+    top = node.insert_after(top,top,left)
+
+    top = node.vpack(top)
+
+
+
+    tex.box[666] = top
     tex.shipout(666)
 end
-
-shipout()
-
-
-

@@ -17,13 +17,15 @@ var (
 	out                io.Writer
 	dimen              *regexp.Regexp
 	style              *regexp.Regexp
-	topleftbottomright [4]string
+	re_inside_whtsp    *regexp.Regexp
+	toprightbottomleft [4]string
 )
 
 func init() {
-	topleftbottomright = [...]string{"top", "left", "bottom", "right"}
+	toprightbottomleft = [...]string{"top", "right", "bottom", "left"}
 	dimen = regexp.MustCompile(`px|mm|cm|in|pt|pc|ch|em|ex|lh|rem|0`)
 	style = regexp.MustCompile(`none|hidden|dotted|dashed|solid|double|groove|ridge|inset|outset`)
+	re_inside_whtsp = regexp.MustCompile(`[\s\p{Zs}]{2,}`)
 }
 
 func normalizespace(input string) string {
@@ -127,6 +129,35 @@ func isBorderStyle(str string) (bool, string) {
 	return style.MatchString(str), str
 }
 
+func getFourValues(str string) map[string]string {
+	fields := strings.Fields(str)
+	fourvalues := make(map[string]string)
+	switch len(fields) {
+	case 1:
+		fourvalues["top"] = fields[0]
+		fourvalues["bottom"] = fields[0]
+		fourvalues["left"] = fields[0]
+		fourvalues["right"] = fields[0]
+	case 2:
+		fourvalues["top"] = fields[0]
+		fourvalues["bottom"] = fields[0]
+		fourvalues["left"] = fields[1]
+		fourvalues["right"] = fields[1]
+	case 3:
+		fourvalues["top"] = fields[0]
+		fourvalues["left"] = fields[1]
+		fourvalues["right"] = fields[1]
+		fourvalues["bottom"] = fields[2]
+	case 4:
+		fourvalues["top"] = fields[0]
+		fourvalues["right"] = fields[1]
+		fourvalues["bottom"] = fields[2]
+		fourvalues["left"] = fields[3]
+	}
+
+	return fourvalues
+}
+
 // Change "margin: 1cm;" into "margin-left: 1cm; margin-right: 1cm; ..."
 func resolveAttributes(attrs []html.Attribute) map[string]string {
 	resolved := make(map[string]string)
@@ -138,17 +169,19 @@ func resolveAttributes(attrs []html.Attribute) map[string]string {
 	for _, attr := range attrs {
 		switch attr.Key {
 		case "margin":
-			for _, margin := range topleftbottomright {
-				resolved["margin-"+margin] = attr.Val
+			values := getFourValues(attr.Val)
+			for _, margin := range toprightbottomleft {
+				resolved["margin-"+margin] = values[margin]
 			}
 		case "padding":
-			for _, padding := range topleftbottomright {
-				resolved["padding-"+padding] = attr.Val
+			values := getFourValues(attr.Val)
+			for _, padding := range toprightbottomleft {
+				resolved["padding-"+padding] = values[padding]
 			}
 		case "border":
 			// This does not work with colors such as rgb(1 , 2 , 4) which have spaces in them
 			for _, part := range strings.Split(attr.Val, " ") {
-				for _, border := range topleftbottomright {
+				for _, border := range toprightbottomleft {
 					if ok, str := isDimension(part); ok {
 						resolved["border-"+border+"-width"] = str
 					} else if ok, str := isBorderStyle(part); ok {
@@ -180,25 +213,31 @@ func resolveAttributes(attrs []html.Attribute) map[string]string {
 
 func dumpElement(i int, sel *goquery.Selection) {
 	lvindent := strings.Repeat(" ", level)
-	eltname := goquery.NodeName(sel)
+	eltname := strings.ToLower(goquery.NodeName(sel))
+
 	if eltname == "#text" {
-		if txt := normalizespace(sel.Text()); txt != "" {
-			fmt.Fprintf(out, "%s  %q,\n", lvindent, txt)
-		}
-	} else {
-		fmt.Fprintf(out, "%s { elementname = %q,\n", lvindent, goquery.NodeName(sel))
-		attributes := resolveAttributes(sel.Get(0).Attr)
+		fmt.Fprintf(out, "%s  %q,\n", lvindent, re_inside_whtsp.ReplaceAllString(sel.Text(), " "))
+		return
+	} else if eltname == "#comment" {
+		// ignore
+		return
+	}
+	attributes := resolveAttributes(sel.Get(0).Attr)
+
+	fmt.Fprintf(out, "%s { elementname = %q,\n", lvindent, eltname)
+	if len(attributes) > 0 {
 		fmt.Fprintf(out, "%s   attributes = {", lvindent)
 		for key, value := range attributes {
 			fmt.Fprintf(out, "[%q] = %q ,", key, value)
 
 		}
 		fmt.Fprintln(out, "},")
-		level++
-		sel.Contents().Each(dumpElement)
-		level--
-		fmt.Fprintln(out, lvindent, "},")
 	}
+	level++
+	sel.Contents().Each(dumpElement)
+	level--
+	fmt.Fprintln(out, lvindent, "},")
+
 }
 
 func (c *CSS) dumpTree(outfile io.Writer) {
@@ -206,19 +245,22 @@ func (c *CSS) dumpTree(outfile io.Writer) {
 	c.document.Find(":root > body").SetAttr("margin", "8pt")
 	out = outfile
 	c.document.Each(resolveStyle)
-
-	for _, block := range c.Stylesheet.Blocks {
-		selector := block.ComponentValues.String()
-		selector = strings.Replace(selector, " ", "", -1)
-		x := c.document.Find(selector)
-		for _, rule := range block.Rules {
-			x.SetAttr(stringValue(rule.Key), stringValue(rule.Value))
+	for _, stylesheet := range c.Stylesheet {
+		for _, block := range stylesheet.Blocks {
+			selector := block.ComponentValues.String()
+			selector = strings.Replace(selector, " ", "", -1)
+			x := c.document.Find(selector)
+			for _, rule := range block.Rules {
+				x.SetAttr(stringValue(rule.Key), stringValue(rule.Value))
+			}
 		}
+
 	}
 	elt := c.document.Find(":root > body")
 	fmt.Fprintf(out, "csshtmltree = {\n")
 	c.dump_fonts()
 	c.dump_pages()
+
 	elt.Each(dumpElement)
 	fmt.Fprintln(out, "}")
 }

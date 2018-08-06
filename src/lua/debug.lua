@@ -41,7 +41,7 @@ do
 
     for k,l in pairs(tbl_to_print) do
         if type(l) == "userdata" and node.is_node(l) then
-            l = nodelist_tostring(l)
+            l = "♢" .. nodelist_tostring(l)
         end
       if (type(l)=="table") then
         if k ~= ".__parent" then

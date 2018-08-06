@@ -36,6 +36,7 @@ end
 --- The parameter `name` is the filename (without path), `size` is
 --- given in scaled points.
 function define_font(name, size)
+    -- w("define_font size %q",tostring(size))
     local fonttable
 
     -- These are stored in the cached fonttable table
