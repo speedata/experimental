@@ -1,20 +1,15 @@
-div.bla {
-    font-size: 14pt;
-    color: red;
-    text-align: justify;
-    width: 50%;
-    border: 1pt solid black;
-    margin-bottom: 2em;
-}
+@import url("a5.css");
+
 
 body {
+  width: 6cm;
+  margin: 0;
 	font-family: sans-serif;
+  text-align: justify;
 }
 
-@page {
-   size: a5;
-   margin-left: 2cm;
-   margin: 1cm;
-   border: 1pt solid;
-}
 
+i {
+  font-weight: bold;
+  font-style: normal;
+}

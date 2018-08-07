@@ -18,7 +18,15 @@ func parseCSSFile(filename string) tokenstream {
 			toks := parseCSSFile(importvalue.Value)
 			finalTokens = append(toks, finalTokens...)
 			// hopefully there is no keyword before the semicolon
-			i += 1
+			for {
+				i++
+				if i >= len(tokens) {
+					break
+				}
+				if tokens[i].Value == ";" {
+					break
+				}
+			}
 		} else {
 			finalTokens = append(finalTokens, tok)
 		}
