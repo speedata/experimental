@@ -215,7 +215,7 @@ func Run(tmpdir string, arguments []string) error {
 	if err != nil {
 		return err
 	}
-
+	os.Setenv("SPHTMLBASE", p)
 	os.Chdir(p)
 	defer os.Chdir(curwd)
 	err = c.openHTMLFile(fn)

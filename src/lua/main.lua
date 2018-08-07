@@ -16,9 +16,9 @@ unpack = unpack or table.unpack
 tex.outputmode=1
 print()
 
-wd = os.getenv("SPWD")
+local sptempfile = os.getenv("SPTEMPFILE")
 
-dofile(wd .. "/table.lua")
+dofile(sptempfile)
 local page = require("page")
 local fonts = require("fonts")
 onecm = tex.sp("1cm")
@@ -499,7 +499,13 @@ function do_inline_block( elt )
 	end
 
     if #elt == 0 then
-        ret = mknodes("X")
+        -- w("#elt == 0 %q",tostring(elt.elementname))
+        if elt.elementname == "img" then
+            -- printtable("elt.attributes",elt.attributes)
+            ret = img.scan{filename = elt.attributes.src}
+        else
+            ret = mknodes("X")
+        end
     end
     local doremove = {}
     local child
@@ -568,16 +574,25 @@ function do_inline_block( elt )
 end
 
 function set_calculated_width( styles )
-    local sw = styles.width or "100%"
-    -- w("styles.width %q",tostring(styles.width))
+    -- w("set_calculated_width styles.calculated_width %q",tostring(styles.calculated_width))
+    local sw = styles.width or "auto"
+    local cw = styles.calculated_width
     if string.match(sw,"%d+%%$") then
         -- xx percent
         local amount = string.match(sw,"(%d+)%%$")
-        styles.calculated_width = math.round(styles.calculated_width * tonumber(amount) / 100 ,0)
+        cw = math.round(cw * tonumber(amount) / 100 ,0)
+    elseif sw == "auto" then
+        cw = 0
+        if styles.height and styles.height ~= "auto" then
+            styles.height = tex.sp(styles.height)
+        else
+            styles.height = nil
+        end
     elseif tex.sp(sw) then
         -- a length
-        styles.calculated_width = tex.sp(sw)
+        cw = tex.sp(sw)
     end
+    styles.calculated_width = cw
 end
 
 -- two adjacent box elements collapse their margin
@@ -587,9 +602,11 @@ function fixup_things( elt )
         curelement = elt[i]
         nextelt = elt[i + 1]
         if nextelt then
-            local inbetween = math.round(math.max(tex.sp(curelement.attributes["margin-bottom"]),tex.sp(nextelt.attributes["margin-top"])) / 2)
-            curelement.attributes["margin-bottom"] = inbetween
-            nextelt.attributes["margin-top"] = inbetween
+            if curelement.attributes["margin-bottom"] and  curelement.attributes["margin-bottom"] ~= 0 and nextelt.attributes["margin-top"] and nextelt.attributes["margin-top"] ~= 0 then
+                local inbetween = math.round(math.max(tex.sp(curelement.attributes["margin-bottom"]),tex.sp(nextelt.attributes["margin-top"])) / 2)
+                curelement.attributes["margin-bottom"] = inbetween
+                nextelt.attributes["margin-top"] = inbetween
+            end
         end
     end
 end
@@ -601,9 +618,16 @@ function add_to_mvl( vlist )
     mvl.list = node.insert_after(mvl.list, node.tail(mvl.list),vlist)
 end
 
-function output_p( elt,wd )
+function output_p( elt,wd, ht )
+    if elt.elementname == "img" then
+        local att = elt.attributes
+        local calculated_wd
+        if wd ~= 0 then calculated_wd = wd end
+        elt.nodelist = img.node({ width = calculated_wd, height = ht, filename = att.src})
+    end
     local vlist = do_linebreak(elt.nodelist,wd)
     vlist = draw_border(vlist,elt.attributes)
+    -- vlist = boxit(vlist)
     add_to_mvl(vlist)
 end
 
@@ -616,22 +640,27 @@ function do_output( elt )
         tex.pageheight = thispage.height
         styles.calculated_width = thispage.width - thispage.margin_left - thispage.margin_right
     end
-
     if elt.attributes then
         for i,v in pairs(elt.attributes) do
             styles[i] = v
         end
     end
-    calculated_width = set_calculated_width(styles)
+
+    if #elt == 0 then
+        if type(elt) == "table" then
+            if elt.elementname == "p" or elt.elementname == "img" then
+                set_calculated_width(styles)
+                output_p(elt,styles.calculated_width, styles.height)
+                table.remove(stylesstack)
+                return
+            end
+        end
+    end
 
     local curelement
     for i=1,#elt do
         curelement = elt[i]
-        if type(curelement) == "table" then
-            if curelement.elementname == "p" then
-                output_p(curelement,styles.calculated_width)
-            end
-        end
+        do_output(curelement)
     end
     table.remove(stylesstack)
 end

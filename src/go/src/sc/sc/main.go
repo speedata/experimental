@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"css"
 	"ltx"
@@ -40,7 +41,7 @@ func dothings() error {
 		return err
 	}
 
-	ltx.Run(basedir, tmpdir)
+	ltx.Run(basedir, filepath.Join(tmpdir, "table.lua"))
 	return nil
 }
 

@@ -2,14 +2,21 @@
 
 
 body {
-  width: 6cm;
   margin: 0;
 	font-family: sans-serif;
   text-align: justify;
 }
 
+p {
+  width: 50%;
+  padding: 5mm;
+}
 
 i {
   font-weight: bold;
   font-style: normal;
+}
+
+img {
+  width: 50%;
 }

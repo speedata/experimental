@@ -1,5 +1,7 @@
 -- Register callbacks for file i/o (kpathsearch is disabled)
 
+local htmlbase = os.getenv("SPHTMLBASE")
+
 local function reader( filename )
 	local tab = { }
 	tab.file = io.open(filename,"rb")
@@ -20,12 +22,14 @@ local function find_read_file( id_number,filename )
 end
 
 local function find_xxx_file( filename )
-	-- w("find_xxx_file")
-	local f = kpse.filelist[filename]
+	-- w("find_xxx_file %q",tostring(filename))
+	if filename == "pdftex.map" then return nil end
+	local f = htmlbase .. "/" .. filename
 	return f
 end
 
 local function read_xxx_file(filename)
+	-- w("read XXX file %q",tostring(filename))
 	local f = io.open(filename,"rb")
 	local buf = f:read("*all")
 	f:close()

@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 )
 
-func Run(basedir, tmpdir string) {
-	os.Setenv("SPWD", tmpdir)
+func Run(basedir, tmpfile string) {
+	os.Setenv("SPTEMPFILE", tmpfile)
 	os.Setenv("SPBASEDIR", basedir)
 
 	cmd := exec.Command("luatex", "--ini", "--lua", filepath.Join(basedir, "src", "lua", "init.lua"), "main.tex")
