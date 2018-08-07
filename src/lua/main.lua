@@ -568,7 +568,7 @@ function do_inline_block( elt )
 end
 
 function set_calculated_width( styles )
-    local sw = styles.width
+    local sw = styles.width or "100%"
     -- w("styles.width %q",tostring(styles.width))
     if string.match(sw,"%d+%%$") then
         -- xx percent

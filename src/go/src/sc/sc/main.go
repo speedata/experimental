@@ -14,8 +14,8 @@ var (
 )
 
 func dothings() error {
-	if len(os.Args) < 3 {
-		fmt.Println("Run `main <name of stylesheet> <name of html file>`.")
+	if len(os.Args) < 2 {
+		fmt.Println("Run `main <file.html> [stylesheet.css ... ] `.")
 		os.Exit(0)
 	}
 
@@ -35,7 +35,7 @@ func dothings() error {
 		tmpdir = dir
 	}
 
-	err := css.Run(os.Args[1], os.Args[2], tmpdir)
+	err := css.Run(tmpdir, os.Args)
 	if err != nil {
 		return err
 	}

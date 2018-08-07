@@ -196,17 +196,34 @@ func (c *CSS) processAtRules() {
 	}
 }
 
-func Run(cssfilename, htmlfilename, tmpdir string) error {
+func Run(tmpdir string, arguments []string) error {
 	var err error
-	c := CSS{}
-	c.Stylesheet = append(c.Stylesheet, consumeBlock(parseCSSFile("defaultstyles.css"), false))
-	c.Stylesheet = append(c.Stylesheet, consumeBlock(parseCSSFile(cssfilename), false))
-
-	c.processAtRules()
-	err = c.openHTMLFile(htmlfilename)
+	curwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
+	c := CSS{}
+	c.Stylesheet = append(c.Stylesheet, consumeBlock(parseCSSFile("defaultstyles.css"), false))
+	htmlfilename := arguments[1]
+	// read additional stylesheets given on the command line
+	for i := 2; i < len(arguments); i++ {
+		c.Stylesheet = append(c.Stylesheet, consumeBlock(parseCSSFile(arguments[i]), false))
+	}
+
+	fn := filepath.Base(htmlfilename)
+	p, err := filepath.Abs(filepath.Dir(htmlfilename))
+	if err != nil {
+		return err
+	}
+
+	os.Chdir(p)
+	defer os.Chdir(curwd)
+	err = c.openHTMLFile(fn)
+	if err != nil {
+		return err
+	}
+	c.processAtRules()
+
 	outfile, err := os.Create(filepath.Join(tmpdir, "table.lua"))
 	if err != nil {
 		return err

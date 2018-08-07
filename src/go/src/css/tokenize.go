@@ -9,14 +9,16 @@ import (
 
 func parseCSSFile(filename string) tokenstream {
 	tokens := parseCSSBody(filename)
-	finalTokens := tokens[:0]
+	var finalTokens []*scanner.Token
+
 	for i := 0; i < len(tokens); i++ {
 		tok := tokens[i]
 		if tok.Type == scanner.AtKeyword && tok.Value == "import" {
 			importvalue := tokens[i+1]
-			finalTokens = append(finalTokens, parseCSSFile(importvalue.Value)...)
+			toks := parseCSSFile(importvalue.Value)
+			finalTokens = append(toks, finalTokens...)
 			// hopefully there is no keyword before the semicolon
-			i += 2
+			i += 1
 		} else {
 			finalTokens = append(finalTokens, tok)
 		}

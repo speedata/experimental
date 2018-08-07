@@ -315,5 +315,11 @@ func (c *CSS) openHTMLFile(filename string) error {
 	if err != nil {
 		return err
 	}
+	c.document.Find(":root > head link").Each(func(i int, sel *goquery.Selection) {
+		if stylesheetfile, attExists := sel.Attr("href"); attExists {
+			parsedStyles := consumeBlock(parseCSSFile(stylesheetfile), false)
+			c.Stylesheet = append(c.Stylesheet, parsedStyles)
+		}
+	})
 	return nil
 }
