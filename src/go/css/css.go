@@ -37,6 +37,7 @@ type cssPage struct {
 	papersize  string
 }
 
+// CSS has all the information
 type CSS struct {
 	document     *goquery.Document
 	Stylesheet   []sBlock
@@ -44,6 +45,7 @@ type CSS struct {
 	Pages        map[string]cssPage
 }
 
+// A FontFamily consists of the four standard shapes: regular, bold, italic, bolditalic
 type FontFamily struct {
 	Regular    string
 	Bold       string
@@ -196,6 +198,7 @@ func (c *CSS) processAtRules() {
 	}
 }
 
+// Run dumps a Lua tree
 func Run(tmpdir string, arguments []string) error {
 	var err error
 	curwd, err := os.Getwd()

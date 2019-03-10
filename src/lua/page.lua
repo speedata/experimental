@@ -9,10 +9,7 @@ _M.__index = _M
 
 function page.new( self,csspage)
     assert(self)
-    local s = {
-        pagebox = node.new("vlist"),
-    }
-
+    local s = {}
     if not csspage then
         s.width = tex.sp("210mm")
         s.height = tex.sp("297mm")
@@ -28,7 +25,17 @@ function page.new( self,csspage)
         s.margin_right = tex.sp(csspage["margin-right"] or "1cm")
         s.margin_bottom = tex.sp(csspage["margin-bottom"] or "1cm")
     end
+
     s.pagegoal = s.height - s.margin_top - s.margin_bottom
-  setmetatable(s, self)
-  return s
+    s.csspage = csspage
+    setmetatable(s, self)
+    return s
+end
+
+function page.finish(self,box)
+    box.width = self.width - self.margin_left - self.margin_right
+    box.height = self.height - self.margin_top - self.margin_bottom
+    box = draw_border(box,self.csspage)
+    tex.box[666] = box
+    tex.shipout(666)
 end

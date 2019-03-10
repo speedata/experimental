@@ -2,11 +2,12 @@ package css
 
 import (
 	"fmt"
-	"golang.org/x/net/html"
 	"io"
 	"os"
 	"regexp"
 	"strings"
+
+	"golang.org/x/net/html"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/thejerf/css/scanner"
@@ -17,15 +18,33 @@ var (
 	out                io.Writer
 	dimen              *regexp.Regexp
 	style              *regexp.Regexp
-	re_inside_whtsp    *regexp.Regexp
+	reInsideWS         *regexp.Regexp
+	reLeadcloseWhtsp   *regexp.Regexp
 	toprightbottomleft [4]string
+	isSpace            *regexp.Regexp
+)
+
+type mode int
+
+func (m mode) String() string {
+	if m == modeHorizontal {
+		return "→"
+	}
+	return "↓"
+}
+
+const (
+	modeHorizontal mode = iota
+	modeVertial
 )
 
 func init() {
 	toprightbottomleft = [...]string{"top", "right", "bottom", "left"}
 	dimen = regexp.MustCompile(`px|mm|cm|in|pt|pc|ch|em|ex|lh|rem|0`)
 	style = regexp.MustCompile(`none|hidden|dotted|dashed|solid|double|groove|ridge|inset|outset`)
-	re_inside_whtsp = regexp.MustCompile(`[\s\p{Zs}]{2,}`)
+	reLeadcloseWhtsp = regexp.MustCompile(`^[\s\p{Zs}]+|[\s\p{Zs}]+$`)
+	reInsideWS = regexp.MustCompile(`[\s\p{Zs}]{2,}`) //to match 2 or more whitespace symbols inside a string
+	isSpace = regexp.MustCompile(`^\s*$`)
 }
 
 func normalizespace(input string) string {
@@ -211,33 +230,61 @@ func resolveAttributes(attrs []html.Attribute) map[string]string {
 	return resolved
 }
 
-func dumpElement(i int, sel *goquery.Selection) {
-	lvindent := strings.Repeat(" ", level)
-	eltname := strings.ToLower(goquery.NodeName(sel))
-
-	if eltname == "#text" {
-		fmt.Fprintf(out, "%s  %q,\n", lvindent, re_inside_whtsp.ReplaceAllString(sel.Text(), " "))
-		return
-	} else if eltname == "#comment" {
-		// ignore
-		return
-	}
-	attributes := resolveAttributes(sel.Get(0).Attr)
-
-	fmt.Fprintf(out, "%s { elementname = %q,\n", lvindent, eltname)
-	if len(attributes) > 0 {
-		fmt.Fprintf(out, "%s   attributes = {", lvindent)
-		for key, value := range attributes {
-			fmt.Fprintf(out, "[%q] = %q ,", key, value)
-
+func dumpElement(thisNode *html.Node, level int, direction mode) {
+	indent := strings.Repeat("  ", level)
+	newDir := direction
+	for {
+		if thisNode == nil {
+			break
 		}
-		fmt.Fprintln(out, "},")
-	}
-	level++
-	sel.Contents().Each(dumpElement)
-	level--
-	fmt.Fprintln(out, lvindent, "},")
 
+		switch thisNode.Type {
+		case html.CommentNode:
+			// ignore
+		case html.TextNode:
+			txt := thisNode.Data
+			if isSpace.MatchString(txt) {
+				if direction == modeHorizontal {
+					txt = " "
+				} else {
+					txt = ""
+				}
+
+			} else {
+				if direction == modeVertial {
+					newDir = modeHorizontal
+				}
+			}
+			if txt != "" {
+				txt = reLeadcloseWhtsp.ReplaceAllString(txt, " ")
+				txt = reInsideWS.ReplaceAllString(txt, " ")
+				fmt.Fprintf(out, "%s  %q,\n", indent, txt)
+			}
+
+		case html.ElementNode:
+			eltname := thisNode.Data
+			if eltname == "body" || eltname == "address" || eltname == "article" || eltname == "aside" || eltname == "blockquote" || eltname == "canvas" || eltname == "dd" || eltname == "div" || eltname == "dl" || eltname == "dt" || eltname == "fieldset" || eltname == "figcaption" || eltname == "figure" || eltname == "footer" || eltname == "form" || eltname == "h1" || eltname == "h2" || eltname == "h3" || eltname == "h4" || eltname == "h5" || eltname == "h6" || eltname == "header" || eltname == "hr" || eltname == "li" || eltname == "main" || eltname == "nav" || eltname == "noscript" || eltname == "ol" || eltname == "p" || eltname == "pre" || eltname == "section" || eltname == "table" || eltname == "tfoot" || eltname == "ul" || eltname == "video" {
+				newDir = modeVertial
+			} else {
+				newDir = modeHorizontal
+			}
+			fmt.Fprintf(out, "%s { elementname = %q, direction = %q,\n", indent, eltname, newDir)
+
+			attributes := thisNode.Attr
+			if len(attributes) > 0 {
+				fmt.Fprintf(out, "%s   attributes = {", indent)
+				for key, value := range resolveAttributes(attributes) {
+					fmt.Fprintf(out, "[%q] = %q ,", key, value)
+				}
+				fmt.Fprintln(out, "},")
+			}
+			dumpElement(thisNode.FirstChild, level+1, newDir)
+			fmt.Fprintln(out, indent, "},")
+		default:
+			fmt.Println(thisNode.Type)
+		}
+		thisNode = thisNode.NextSibling
+	}
 }
 
 func (c *CSS) dumpTree(outfile io.Writer) {
@@ -256,16 +303,17 @@ func (c *CSS) dumpTree(outfile io.Writer) {
 		}
 
 	}
-	elt := c.document.Find(":root > body")
+	elt := c.document.Find(":root > body").Nodes[0]
 	fmt.Fprintf(out, "csshtmltree = {\n")
-	c.dump_fonts()
-	c.dump_pages()
+	c.dumpFonts()
+	c.dumpPages()
 
-	elt.Each(dumpElement)
+	dumpElement(elt, 0, modeVertial)
+
 	fmt.Fprintln(out, "}")
 }
 
-func (c *CSS) dump_pages() {
+func (c *CSS) dumpPages() {
 	fmt.Fprintln(out, "  pages = {")
 	for k, v := range c.Pages {
 		if k == "" {
@@ -290,7 +338,7 @@ func (c *CSS) dump_pages() {
 	fmt.Fprintln(out, "  },")
 }
 
-func (c *CSS) dump_fonts() {
+func (c *CSS) dumpFonts() {
 	fmt.Fprintln(out, " fontfamilies = {")
 	for name, ff := range c.Fontfamilies {
 		fmt.Fprintf(out, "     [%q] = { regular = %q, bold=%q, bolditalic=%q, italic=%q },\n", name, ff.Regular, ff.Bold, ff.BoldItalic, ff.Italic)

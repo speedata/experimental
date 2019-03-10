@@ -1,6 +1,4 @@
 pkg
-src/go/src/github.com/
-src/go/src/golang.org/
 *.html
 bin/sc
 main.log
@@ -8,3 +6,4 @@ main.log
 src/lua/viznodelist.lua
 !samples
 /*css
+.vscode
