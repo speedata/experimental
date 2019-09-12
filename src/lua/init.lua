@@ -74,7 +74,10 @@ kpse.add_dir(fontsdir)
 
 function kpse.find_file(filename,what)
   if not filename then return nil end
-  return kpse.filelist[filename] or kpse.filelist[filename .. ".tex"]
+  local ret = kpse.filelist[filename] or kpse.filelist[filename .. ".tex"]
+  if ret then return ret end
+  if lfs.attributes (filename) then return filename end
+  return nil
 end
 
 function do_luafile(filename)

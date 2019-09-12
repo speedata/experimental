@@ -36,14 +36,14 @@ end
 --- The parameter `name` is the filename (without path), `size` is
 --- given in scaled points.
 function define_font(name, size)
-    -- w("define_font size %q",tostring(size))
+    -- w("define_font name %q size %q",name, tostring(size))
     local fonttable
 
     -- These are stored in the cached fonttable table
     local filename_with_path
     local lookup_codepoint_by_name   = {}
     local lookup_codepoint_by_number = {}
-    filename_with_path = kpse.filelist[name]
+    filename_with_path = kpse.find_file(name)
     if not filename_with_path then return false, string.format("Fontfile '%s' not found.", name) end
     local font, err = fontloader.open(filename_with_path)
     if not font then

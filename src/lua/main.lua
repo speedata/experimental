@@ -39,7 +39,8 @@ local fontfamilies = {
     ["sans-serif"] = {
         regular = {filename = "texgyreheros-regular.otf"},
         bold = {filename = "texgyreheros-bold.otf"},
-        italic = {filename = "texgyreheros-italic.otf"}
+        italic = {filename = "texgyreheros-italic.otf"},
+        bolditalic = {filename = "texgyreheros-bolditalic.otf"}
     }
 }
 
@@ -247,17 +248,17 @@ function getfont(styles)
             fontselector = "italic"
         end
     end
-
-    local fam = fontfamilies[fontfamily or "sans-serif"]
-    if fam[fontselector] and fam[fontselector].fontnumber then
+    -- font loading is expensive. So we don't want to load a font twice.
+    local fam = fontfamilies[family or "sans-serif"]
+    if fam[fontselector] and fam[fontselector].fontnumber and fam[fontselector].size == size then
         return fam[fontselector].fontnumber
     end
 
-    -- printtable("fam",fam[fontselector])
-    local ok, f = fonts.define_font(fam[fontselector].filename, tex.sp(size))
+    local ok, f = fonts.define_font(fam[fontselector].filename, size)
     if ok then
         local num = font.define(f)
         fam[fontselector].fontnumber = num
+        fam[fontselector].size = size
         fonttable[num] = f
     else
         print(f)
@@ -528,6 +529,7 @@ styles["font-family"] = "sans-serif"
 styles["font-size"] = "12pt"
 styles["font-weight"] = "normal"
 styles["font-style"] = "normal"
+styles["line-height"] = "normal"
 
 stylesstack[#stylesstack + 1] = styles
 
@@ -551,9 +553,23 @@ function create_horizontal_nodelists(elt)
     end
 
     if elt.attributes then
-        for i, v in pairs(elt.attributes) do
-            styles[i] = v
+        for k, v in pairs(elt.attributes) do
+            if k == "font-size" and string.match(v, "em$") then
+                local amount = string.gsub(v, "^(.*)r?em$", "%1")
+                local fontsize = tex.sp(styles["font-size"])
+                v = fontsize * amount
+            end
+            styles[k] = v
         end
+    end
+
+    set_calculated_width(styles)
+
+    if elt.elementname == "img" then
+        local rule = node.new(rule_node)
+        rule = img.node({width = styles.calculated_width, filename = styles.src})
+        table.remove(stylesstack)
+        return rule
     end
 
     elt.nodelist = {}

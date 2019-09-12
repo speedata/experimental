@@ -1,14 +1,45 @@
 package css
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/thejerf/css/scanner"
 )
 
 func parseCSSFile(filename string) tokenstream {
-	tokens := parseCSSBody(filename)
+	curwd, err := os.Getwd()
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	p, err := filepath.Abs(filepath.Dir(filename))
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	rel := filepath.Base(filename)
+	err = os.Chdir(p)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	defer os.Chdir(curwd)
+	tokens := parseCSSBody(rel)
+
+	for _, tok := range tokens {
+		if tok.Type == scanner.URI {
+			// convert relative path into absolute path
+			// This assumes that all URIs are relative
+			// which is, of course, nonsense.
+			// Since this is just a simple test, it's ok.
+			tok.Value = filepath.Join(p, tok.Value)
+		}
+	}
+
 	var finalTokens []*scanner.Token
 
 	for i := 0; i < len(tokens); i++ {

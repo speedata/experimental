@@ -119,7 +119,7 @@ func resolveStyle(i int, sel *goquery.Selection) {
 					w("unknown delimiter", tok.Value)
 				}
 			default:
-				w("unknown token type", tok.Type)
+				// w("unknown token type", tok.Type, tok.Value)
 			}
 			i = i + 1
 			if i == len(tokens) {
