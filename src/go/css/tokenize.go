@@ -88,3 +88,22 @@ func parseCSSBody(filename string) tokenstream {
 	}
 	return tokens
 }
+
+func parseCSSString(contents string) tokenstream {
+	var tokens tokenstream
+
+	s := scanner.New(contents)
+	for {
+		token := s.Next()
+		if token.Type == scanner.EOF || token.Type == scanner.Error {
+			break
+		}
+		switch token.Type {
+		case scanner.Comment, scanner.S:
+			// ignore
+		default:
+			tokens = append(tokens, token)
+		}
+	}
+	return tokens
+}

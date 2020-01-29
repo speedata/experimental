@@ -1,20 +1,15 @@
 package css
 
 import (
-	"fmt"
-	"golang.org/x/net/html"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"golang.org/x/net/html"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/thejerf/css/scanner"
 )
-
-func init() {
-	if false {
-		fmt.Println("dummy")
-	}
-}
 
 type tokenstream []*scanner.Token
 
@@ -198,40 +193,89 @@ func (c *CSS) processAtRules() {
 	}
 }
 
-// Run dumps a Lua tree
-func Run(tmpdir string, arguments []string) error {
+// Run returns a Lua tree
+func Run(tmpdir string, arguments []string) (string, error) {
 	var err error
 	curwd, err := os.Getwd()
 	if err != nil {
-		return err
+		return "", err
 	}
 	c := CSS{}
-	c.Stylesheet = append(c.Stylesheet, consumeBlock(parseCSSFile("defaultstyles.css"), false))
-	htmlfilename := arguments[1]
+
+	defaults := `
+	li              { display: list-item }
+	head            { display: none }
+	table           { display: table }
+	tr              { display: table-row }
+	thead           { display: table-header-group }
+	tbody           { display: table-row-group }
+	tfoot           { display: table-footer-group }
+	td, th          { display: table-cell }
+	caption         { display: table-caption }
+	th              { font-weight: bold; text-align: center }
+	caption         { text-align: center }
+	body            { margin: 0pt }
+	h1              { font-size: 2em; margin: .67em 0 }
+	h2              { font-size: 1.5em; margin: .75em 0 }
+	h3              { font-size: 1.17em; margin: .83em 0 }
+	h4, p,
+	blockquote, ul,
+	fieldset, form,
+	ol, dl, dir,
+	h5              { font-size: 1em; margin: 1.5em 0 }
+	h6              { font-size: .75em; margin: 1.67em 0 }
+	h1, h2, h3, h4,
+	h5, h6, b,
+	strong          { font-weight: bold }
+	blockquote      { margin-left: 40px; margin-right: 40px }
+	i, cite, em,
+	var, address    { font-style: italic }
+	pre, tt, code,
+	kbd, samp       { font-family: monospace }
+	pre             { white-space: pre }
+	button, textarea,
+	input, select   { display: inline-block }
+	big             { font-size: 1.17em }
+	small, sub, sup { font-size: .83em }
+	sub             { vertical-align: sub }
+	sup             { vertical-align: super }
+	table           { border-spacing: 2px; }
+	thead, tbody,
+	tfoot           { vertical-align: middle }
+	td, th, tr      { vertical-align: inherit }
+	s, strike, del  { text-decoration: line-through }
+	hr              { border: 1px inset }
+	ol, ul, dir, dd { margin-left: 40px }
+	ol              { list-style-type: decimal }
+	ol ul, ul ol,
+	ul ul, ol ol    { margin-top: 0; margin-bottom: 0 }
+	u, ins          { text-decoration: underline }
+	center          { text-align: center }
+	:link           { text-decoration: underline }
+`
+
+	c.Stylesheet = append(c.Stylesheet, consumeBlock(parseCSSString(defaults), false))
+	htmlfilename := arguments[0]
 	// read additional stylesheets given on the command line
-	for i := 2; i < len(arguments); i++ {
+	for i := 1; i < len(arguments); i++ {
 		c.Stylesheet = append(c.Stylesheet, consumeBlock(parseCSSFile(arguments[i]), false))
 	}
 
 	fn := filepath.Base(htmlfilename)
 	p, err := filepath.Abs(filepath.Dir(htmlfilename))
 	if err != nil {
-		return err
+		return "", err
 	}
 	os.Setenv("SPHTMLBASE", p)
 	os.Chdir(p)
 	defer os.Chdir(curwd)
 	err = c.openHTMLFile(fn)
 	if err != nil {
-		return err
+		return "", err
 	}
 	c.processAtRules()
+	var b strings.Builder
+	c.dumpTree(&b)
 
-	outfile, err := os.Create(filepath.Join(tmpdir, "table.lua"))
-	if err != nil {
-		return err
-	}
-	c.dumpTree(outfile)
-	outfile.Close()
-	return nil
+	return b.String(), nil
 }

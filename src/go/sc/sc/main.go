@@ -36,12 +36,18 @@ func dothings() error {
 		tmpdir = dir
 	}
 
-	err := css.Run(tmpdir, os.Args)
+	str, err := css.Run(tmpdir, os.Args[1:])
 	if err != nil {
 		return err
 	}
 
-	ltx.Run(basedir, filepath.Join(tmpdir, "table.lua"))
+	fn := filepath.Join(tmpdir, "table.lua")
+
+	err = ioutil.WriteFile(fn, []byte(str), 0644)
+	if err != nil {
+		return err
+	}
+	ltx.Run(basedir, fn)
 	return nil
 }
 
