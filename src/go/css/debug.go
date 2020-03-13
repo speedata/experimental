@@ -43,7 +43,7 @@ func (t tokenstream) String() string {
 	for _, tok := range t {
 		ret = append(ret, tok.Value)
 	}
-	return strings.Join(ret, " ")
+	return strings.Join(ret, "")
 }
 
 func (c *CSS) dump() {

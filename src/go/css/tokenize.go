@@ -80,8 +80,7 @@ func parseCSSBody(filename string) tokenstream {
 			break
 		}
 		switch token.Type {
-		case scanner.Comment, scanner.S:
-			// ignore
+		case scanner.Comment:
 		default:
 			tokens = append(tokens, token)
 		}
@@ -99,7 +98,7 @@ func parseCSSString(contents string) tokenstream {
 			break
 		}
 		switch token.Type {
-		case scanner.Comment, scanner.S:
+		case scanner.Comment:
 			// ignore
 		default:
 			tokens = append(tokens, token)

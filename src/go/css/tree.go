@@ -5,11 +5,13 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 
 	"golang.org/x/net/html"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/andybalholm/cascadia"
 	"github.com/thejerf/css/scanner"
 )
 
@@ -63,6 +65,8 @@ func stringValue(toks tokenstream) string {
 			ret = append(ret, "#"+tok.Value)
 		case scanner.Function:
 			ret = append(ret, tok.Value+"(")
+		case scanner.S:
+			// ret = append(ret, " ")
 		case scanner.Delim:
 			switch tok.Value {
 			case ";":
@@ -288,23 +292,48 @@ func dumpElement(thisNode *html.Node, level int, direction mode) {
 }
 
 func (c *CSS) dumpTree(outfile io.Writer) {
-	// The 8pt seems to be the default in browsers and copied to CSS paged media.
-	c.document.Find(":root > body").SetAttr("margin", "8pt")
 	out = outfile
+	type selRule struct {
+		selector cascadia.Sel
+		rule     []qrule
+	}
+
+	rules := map[int][]selRule{}
 	c.document.Each(resolveStyle)
 	for _, stylesheet := range c.Stylesheet {
 		for _, block := range stylesheet.Blocks {
 			selector := block.ComponentValues.String()
-			selector = strings.Replace(selector, " ", "", -1)
-			x := c.document.Find(selector)
-			for _, rule := range block.Rules {
-				x.SetAttr(stringValue(rule.Key), stringValue(rule.Value))
+			selectors, err := cascadia.ParseGroupWithPseudoElements(selector)
+			if err != nil {
+				fmt.Println(err)
+			} else {
+				for _, sel := range selectors {
+					selSpecificity := sel.Specificity()
+					s := selSpecificity[0]*100 + selSpecificity[1]*10 + selSpecificity[2]
+					rules[s] = append(rules[s], selRule{selector: sel, rule: block.Rules})
+				}
 			}
 		}
-
+	}
+	// sort map keys
+	n := len(rules)
+	keys := make([]int, 0, n)
+	for k := range rules {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	doc := c.document.Get(0)
+	for _, k := range keys {
+		for _, r := range rules[k] {
+			for _, singlerule := range r.rule {
+				for _, node := range cascadia.QueryAll(doc, r.selector) {
+					node.Attr = append(node.Attr, html.Attribute{Key: stringValue(singlerule.Key), Val: stringValue(singlerule.Value)})
+				}
+			}
+		}
 	}
 	elt := c.document.Find(":root > body").Nodes[0]
-	fmt.Fprintf(out, "csshtmltree = {\n")
+	fmt.Fprintf(out, "csshtmltree = { typ = 'csshtmltree',\n")
 	c.dumpFonts()
 	c.dumpPages()
 
@@ -352,6 +381,22 @@ func papersize(typ string) (string, string) {
 		return "148mm", "210mm"
 	}
 	return "210mm", "297mm"
+}
+
+func (c *CSS) readHTMLChunk(htmltext string) error {
+	var err error
+	r := strings.NewReader(htmltext)
+	c.document, err = goquery.NewDocumentFromReader(r)
+	if err != nil {
+		return err
+	}
+	c.document.Find(":root > head link").Each(func(i int, sel *goquery.Selection) {
+		if stylesheetfile, attExists := sel.Attr("href"); attExists {
+			parsedStyles := consumeBlock(parseCSSFile(stylesheetfile), false)
+			c.Stylesheet = append(c.Stylesheet, parsedStyles)
+		}
+	})
+	return nil
 }
 
 func (c *CSS) openHTMLFile(filename string) error {
