@@ -30,16 +30,6 @@ func parseCSSFile(filename string) tokenstream {
 	defer os.Chdir(curwd)
 	tokens := parseCSSBody(rel)
 
-	for _, tok := range tokens {
-		if tok.Type == scanner.URI {
-			// convert relative path into absolute path
-			// This assumes that all URIs are relative
-			// which is, of course, nonsense.
-			// Since this is just a simple test, it's ok.
-			tok.Value = filepath.Join(p, tok.Value)
-		}
-	}
-
 	var finalTokens []*scanner.Token
 
 	for i := 0; i < len(tokens); i++ {

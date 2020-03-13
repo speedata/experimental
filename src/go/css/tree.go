@@ -234,6 +234,8 @@ func resolveAttributes(attrs []html.Attribute) map[string]string {
 	return resolved
 }
 
+var preserveWhitespace = []bool{false}
+
 func dumpElement(thisNode *html.Node, level int, direction mode) {
 	indent := strings.Repeat("  ", level)
 	newDir := direction
@@ -246,26 +248,32 @@ func dumpElement(thisNode *html.Node, level int, direction mode) {
 		case html.CommentNode:
 			// ignore
 		case html.TextNode:
+			ws := preserveWhitespace[len(preserveWhitespace)-1]
 			txt := thisNode.Data
-			if isSpace.MatchString(txt) {
-				if direction == modeHorizontal {
-					txt = " "
-				} else {
-					txt = ""
+			if !ws {
+				if isSpace.MatchString(txt) {
+					if direction == modeHorizontal {
+						txt = " "
+					} else {
+						txt = ""
+					}
 				}
-
-			} else {
+			}
+			if !isSpace.MatchString(txt) {
 				if direction == modeVertial {
 					newDir = modeHorizontal
 				}
 			}
 			if txt != "" {
-				txt = reLeadcloseWhtsp.ReplaceAllString(txt, " ")
-				txt = reInsideWS.ReplaceAllString(txt, " ")
+				if !ws {
+					txt = reLeadcloseWhtsp.ReplaceAllString(txt, " ")
+					txt = reInsideWS.ReplaceAllString(txt, " ")
+				}
 				fmt.Fprintf(out, "%s  %q,\n", indent, txt)
 			}
 
 		case html.ElementNode:
+			ws := preserveWhitespace[len(preserveWhitespace)-1]
 			eltname := thisNode.Data
 			if eltname == "body" || eltname == "address" || eltname == "article" || eltname == "aside" || eltname == "blockquote" || eltname == "canvas" || eltname == "dd" || eltname == "div" || eltname == "dl" || eltname == "dt" || eltname == "fieldset" || eltname == "figcaption" || eltname == "figure" || eltname == "footer" || eltname == "form" || eltname == "h1" || eltname == "h2" || eltname == "h3" || eltname == "h4" || eltname == "h5" || eltname == "h6" || eltname == "header" || eltname == "hr" || eltname == "li" || eltname == "main" || eltname == "nav" || eltname == "noscript" || eltname == "ol" || eltname == "p" || eltname == "pre" || eltname == "section" || eltname == "table" || eltname == "tfoot" || eltname == "ul" || eltname == "video" {
 				newDir = modeVertial
@@ -278,11 +286,20 @@ func dumpElement(thisNode *html.Node, level int, direction mode) {
 			if len(attributes) > 0 {
 				fmt.Fprintf(out, "%s   attributes = {", indent)
 				for key, value := range resolveAttributes(attributes) {
+					if key == "white-space" {
+						if value == "pre" {
+							ws = true
+						} else {
+							ws = false
+						}
+					}
 					fmt.Fprintf(out, "[%q] = %q ,", key, value)
 				}
 				fmt.Fprintln(out, "},")
 			}
+			preserveWhitespace = append(preserveWhitespace, ws)
 			dumpElement(thisNode.FirstChild, level+1, newDir)
+			preserveWhitespace = preserveWhitespace[:len(preserveWhitespace)-1]
 			fmt.Fprintln(out, indent, "},")
 		default:
 			fmt.Println(thisNode.Type)

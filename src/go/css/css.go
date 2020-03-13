@@ -147,7 +147,15 @@ func consumeBlock(toks tokenstream, inblock bool) sBlock {
 		return b
 	}
 	i := 0
-	start := 0
+	// we might start with whitespace, skip it
+	for {
+		if t := toks[i]; t.Type == scanner.S {
+			i++
+		} else {
+			break
+		}
+	}
+	start := i
 	colon := 0
 	for {
 		// There are only two cases: a key-value rule or something with
@@ -176,6 +184,11 @@ func consumeBlock(toks tokenstream, inblock bool) sBlock {
 				}
 				i = i + l
 				start = i + 1
+				// skip over whitespace
+				if toks[start].Type == scanner.S && start < len(toks) {
+					start++
+					i++
+				}
 			default:
 				// w("unknown delimiter", t.Value)
 			}
@@ -194,13 +207,15 @@ func consumeBlock(toks tokenstream, inblock bool) sBlock {
 func (c *CSS) doFontFace(ff []qrule) {
 	var fontfamily, fontstyle, fontweight, fontsource string
 	for _, rule := range ff {
-		switch rule.Key.String() {
+		key := strings.TrimSpace(rule.Key.String())
+		value := strings.TrimSpace(rule.Value.String())
+		switch key {
 		case "font-family":
-			fontfamily = rule.Value.String()
+			fontfamily = value
 		case "font-style":
-			fontstyle = rule.Value.String()
+			fontstyle = value
 		case "font-weight":
-			fontweight = rule.Value.String()
+			fontweight = value
 		case "src":
 			for _, v := range rule.Value {
 				if v.Type == scanner.URI {
