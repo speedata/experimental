@@ -79,7 +79,7 @@ td, th          { display: table-cell }
 caption         { display: table-caption }
 th              { font-weight: bold; text-align: center }
 caption         { text-align: center }
-body            { margin: 0pt }
+body            { margin: 0pt; font-family: sans-serif; font-size: 10pt; }
 h1              { font-size: 2em; margin: .67em 0 }
 h2              { font-size: 1.5em; margin: .75em 0 }
 h3              { font-size: 1.17em; margin: .83em 0 }
@@ -331,7 +331,11 @@ func Run(tmpdir string, arguments []string) (string, error) {
 	htmlfilename := arguments[0]
 	// read additional stylesheets given on the command line
 	for i := 1; i < len(arguments); i++ {
-		c.Stylesheet = append(c.Stylesheet, consumeBlock(parseCSSFile(arguments[i]), false))
+		block, err := parseCSSFile(arguments[i])
+		if err != nil {
+			return "", err
+		}
+		c.Stylesheet = append(c.Stylesheet, consumeBlock(block, false))
 	}
 
 	fn := filepath.Base(htmlfilename)

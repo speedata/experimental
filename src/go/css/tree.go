@@ -421,13 +421,18 @@ func (c *CSS) readHTMLChunk(htmltext string) error {
 	if err != nil {
 		return err
 	}
+	var errcond error
 	c.document.Find(":root > head link").Each(func(i int, sel *goquery.Selection) {
 		if stylesheetfile, attExists := sel.Attr("href"); attExists {
-			parsedStyles := consumeBlock(parseCSSFile(stylesheetfile), false)
+			block, err := parseCSSFile(stylesheetfile)
+			if err != nil {
+				errcond = err
+			}
+			parsedStyles := consumeBlock(block, false)
 			c.Stylesheet = append(c.Stylesheet, parsedStyles)
 		}
 	})
-	return nil
+	return errcond
 }
 
 func (c *CSS) openHTMLFile(filename string) error {
@@ -439,11 +444,16 @@ func (c *CSS) openHTMLFile(filename string) error {
 	if err != nil {
 		return err
 	}
+	var errcond error
 	c.document.Find(":root > head link").Each(func(i int, sel *goquery.Selection) {
 		if stylesheetfile, attExists := sel.Attr("href"); attExists {
-			parsedStyles := consumeBlock(parseCSSFile(stylesheetfile), false)
+			block, err := parseCSSFile(stylesheetfile)
+			if err != nil {
+				errcond = err
+			}
+			parsedStyles := consumeBlock(block, false)
 			c.Stylesheet = append(c.Stylesheet, parsedStyles)
 		}
 	})
-	return nil
+	return errcond
 }
