@@ -10,9 +10,10 @@ import (
 
 	"golang.org/x/net/html"
 
+	"internal/github-css/scanner"
+
 	"github.com/PuerkitoBio/goquery"
 	"github.com/andybalholm/cascadia"
-	"github.com/thejerf/css/scanner"
 )
 
 var (
@@ -55,10 +56,20 @@ func normalizespace(input string) string {
 
 func stringValue(toks tokenstream) string {
 	ret := []string{}
+	negative := false
+	prevNegative := false
 	for _, tok := range toks {
+		prevNegative = negative
+		negative = false
 		switch tok.Type {
-		case scanner.Ident, scanner.Dimension, scanner.String, scanner.Number:
+		case scanner.Ident, scanner.String:
 			ret = append(ret, tok.Value)
+		case scanner.Number, scanner.Dimension:
+			if prevNegative {
+				ret = append(ret, "-"+tok.Value)
+			} else {
+				ret = append(ret, tok.Value)
+			}
 		case scanner.Percentage:
 			ret = append(ret, tok.Value+"%")
 		case scanner.Hash:
@@ -73,6 +84,8 @@ func stringValue(toks tokenstream) string {
 				// ignore
 			case ",", ")":
 				ret = append(ret, tok.Value)
+			case "-":
+				negative = true
 			default:
 				w("unhandled delimiter", tok)
 			}
@@ -227,6 +240,11 @@ func resolveAttributes(attrs []html.Attribute) map[string]string {
 					resolved[attr.Key+"-color"] = str
 				}
 			}
+		case "background":
+			// background-clip, background-color, background-image, background-origin, background-position, background-repeat, background-size, and background-attachment
+			for _, part := range strings.Split(attr.Val, " ") {
+				resolved["background-color"] = part
+			}
 		default:
 			resolved[attr.Key] = attr.Val
 		}
@@ -252,11 +270,7 @@ func dumpElement(thisNode *html.Node, level int, direction mode) {
 			txt := thisNode.Data
 			if !ws {
 				if isSpace.MatchString(txt) {
-					if direction == modeHorizontal {
-						txt = " "
-					} else {
-						txt = ""
-					}
+					txt = " "
 				}
 			}
 			if !isSpace.MatchString(txt) {
@@ -387,7 +401,7 @@ func (c *CSS) dumpPages() {
 func (c *CSS) dumpFonts() {
 	fmt.Fprintln(out, " fontfamilies = {")
 	for name, ff := range c.Fontfamilies {
-		fmt.Fprintf(out, "     [%q] = { regular = %q, bold=%q, bolditalic=%q, italic=%q },\n", name, ff.Regular, ff.Bold, ff.BoldItalic, ff.Italic)
+		fmt.Fprintf(out, "     [%q] = { regular = %s, bold=%s, bolditalic=%s, italic=%s },\n", name, ff.Regular, ff.Bold, ff.BoldItalic, ff.Italic)
 	}
 	fmt.Fprintln(out, " },")
 }

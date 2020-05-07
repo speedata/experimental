@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/thejerf/css/scanner"
+	"internal/github-css/scanner"
 )
 
 func parseCSSFile(filename string) tokenstream {

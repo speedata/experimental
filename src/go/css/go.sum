@@ -6,6 +6,8 @@ github.com/andybalholm/cascadia v1.1.0 h1:BuuO6sSfQNFRu1LppgbD25Hr2vLYW25JvxHs5z
 github.com/andybalholm/cascadia v1.1.0/go.mod h1:GsXiBklL0woXo1j/WYWtSYYC4ouU9PqHO0sqidkEA4Y=
 github.com/andybalholm/cascadia v1.1.1-0.20191115165331-903109d295d5 h1:lm0H7kPz04JjPtTb+35IO5GrQvadC9nTL5zdvnK49mQ=
 github.com/andybalholm/cascadia v1.1.1-0.20191115165331-903109d295d5/go.mod h1:YCyR8vOZT9aZ1CHEd8ap0gMVm2aFgxBp0T0eFw1RUQY=
+github.com/speedata/css v1.0.1 h1:lcrvhkiBeCwWaOPwoejMVHc4fZrI1GV3qCEMwYJc1WE=
+github.com/speedata/css v1.0.1/go.mod h1:WK6obK7kx39HBdS7eKtuLLnyKz7B8+zdgYhHHqWi3LI=
 github.com/thejerf/css v1.0.1 h1:5hpxzZOpcdd/KsvGMwXnJq5AS2ITVqUhcco1SFpMgBs=
 github.com/thejerf/css v1.0.1/go.mod h1:J5y2JcaFqscqPr77rQ2vgI/DQEaY78qFQlO7FYANNtc=
 golang.org/x/net v0.0.0-20180218175443-cbe0f9307d01/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=

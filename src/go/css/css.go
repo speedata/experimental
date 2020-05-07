@@ -1,14 +1,16 @@
 package css
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"golang.org/x/net/html"
 
+	"internal/github-css/scanner"
+
 	"github.com/PuerkitoBio/goquery"
-	"github.com/thejerf/css/scanner"
 )
 
 type tokenstream []*scanner.Token
@@ -40,15 +42,33 @@ type CSS struct {
 	Pages        map[string]cssPage
 }
 
-// A FontFamily consists of the four standard shapes: regular, bold, italic, bolditalic
-type FontFamily struct {
-	Regular    string
-	Bold       string
-	Italic     string
-	BoldItalic string
+// FontSource has URL/file names for fonts
+type FontSource struct {
+	Local string
+	URL   string
 }
 
-var cssdefaults = `	li              { display: list-item }
+func (f FontSource) String() string {
+	ret := []string{}
+	if f.Local != "" {
+		ret = append(ret, fmt.Sprintf(`["local"] = %q`, f.Local))
+	}
+	if f.URL != "" {
+		ret = append(ret, fmt.Sprintf("url = %q", f.URL))
+	}
+	return "{" + strings.Join(ret, ",") + "}"
+}
+
+// A FontFamily consists of the four standard shapes: regular, bold, italic, bolditalic
+type FontFamily struct {
+	Regular    FontSource
+	Bold       FontSource
+	Italic     FontSource
+	BoldItalic FontSource
+}
+
+var cssdefaults = `
+li              { display: list-item; padding-inline-start: 40pt; }
 head            { display: none }
 table           { display: table }
 tr              { display: table-row }
@@ -84,7 +104,7 @@ big             { font-size: 1.17em }
 small, sub, sup { font-size: .83em }
 sub             { vertical-align: sub }
 sup             { vertical-align: super }
-table           { border-spacing: 2px; }
+table           { border-spacing: 2pt; }
 thead, tbody,
 tfoot           { vertical-align: middle }
 td, th, tr      { vertical-align: inherit }
@@ -205,7 +225,8 @@ func consumeBlock(toks tokenstream, inblock bool) sBlock {
 }
 
 func (c *CSS) doFontFace(ff []qrule) {
-	var fontfamily, fontstyle, fontweight, fontsource string
+	var fontfamily, fontstyle, fontweight string
+	var fontsource FontSource
 	for _, rule := range ff {
 		key := strings.TrimSpace(rule.Key.String())
 		value := strings.TrimSpace(rule.Value.String())
@@ -219,8 +240,9 @@ func (c *CSS) doFontFace(ff []qrule) {
 		case "src":
 			for _, v := range rule.Value {
 				if v.Type == scanner.URI {
-					fontsource = v.Value
-					break
+					fontsource.URL = v.Value
+				} else if v.Type == scanner.Local {
+					fontsource.Local = v.Value
 				}
 			}
 		}
