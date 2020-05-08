@@ -50,7 +50,13 @@ func parseCSSFile(filename string) (tokenstream, error) {
 			if err != nil {
 				return nil, err
 			}
-			finalTokens = append(toks, finalTokens...)
+			// if the last token of the imported file is a space, remove it.
+			lasttoc := toks[len(toks)-1]
+			if lasttoc.Type == scanner.S {
+				finalTokens = append(toks[:len(toks)-1], finalTokens...)
+			} else {
+				finalTokens = append(toks, finalTokens...)
+			}
 			// hopefully there is no keyword before the semicolon
 			for {
 				i++
