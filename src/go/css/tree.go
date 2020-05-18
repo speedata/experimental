@@ -25,6 +25,7 @@ var (
 	reLeadcloseWhtsp   *regexp.Regexp
 	toprightbottomleft [4]string
 	isSpace            *regexp.Regexp
+	quoteString        *strings.Replacer
 )
 
 type mode int
@@ -46,8 +47,10 @@ func init() {
 	dimen = regexp.MustCompile(`px|mm|cm|in|pt|pc|ch|em|ex|lh|rem|0`)
 	style = regexp.MustCompile(`none|hidden|dotted|dashed|solid|double|groove|ridge|inset|outset`)
 	reLeadcloseWhtsp = regexp.MustCompile(`^[\s\p{Zs}]+|[\s\p{Zs}]+$`)
-	reInsideWS = regexp.MustCompile(`[\s\p{Zs}]{2,}`) //to match 2 or more whitespace symbols inside a string
+	reInsideWS = regexp.MustCompile(`\n|[\s\p{Zs}]{2,}`) //to match 2 or more whitespace symbols inside a string or NL
 	isSpace = regexp.MustCompile(`^\s*$`)
+	// go %s must escape quotes and newlines for Lua
+	quoteString = strings.NewReplacer(`"`, `\"`, "\n", `\n`)
 }
 
 func normalizespace(input string) string {
@@ -283,13 +286,14 @@ func dumpElement(thisNode *html.Node, level int, direction mode) {
 					txt = reLeadcloseWhtsp.ReplaceAllString(txt, " ")
 					txt = reInsideWS.ReplaceAllString(txt, " ")
 				}
-				fmt.Fprintf(out, "%s  %q,\n", indent, txt)
+				fmt.Fprintf(out, `%s "%s",`, indent, quoteString.Replace(txt))
+				fmt.Fprintf(out, "\n")
 			}
 
 		case html.ElementNode:
 			ws := preserveWhitespace[len(preserveWhitespace)-1]
 			eltname := thisNode.Data
-			if eltname == "body" || eltname == "address" || eltname == "article" || eltname == "aside" || eltname == "blockquote" || eltname == "canvas" || eltname == "dd" || eltname == "div" || eltname == "dl" || eltname == "dt" || eltname == "fieldset" || eltname == "figcaption" || eltname == "figure" || eltname == "footer" || eltname == "form" || eltname == "h1" || eltname == "h2" || eltname == "h3" || eltname == "h4" || eltname == "h5" || eltname == "h6" || eltname == "header" || eltname == "hr" || eltname == "li" || eltname == "main" || eltname == "nav" || eltname == "noscript" || eltname == "ol" || eltname == "p" || eltname == "pre" || eltname == "section" || eltname == "table" || eltname == "tfoot" || eltname == "ul" || eltname == "video" {
+			if eltname == "body" || eltname == "address" || eltname == "article" || eltname == "aside" || eltname == "blockquote" || eltname == "canvas" || eltname == "dd" || eltname == "div" || eltname == "dl" || eltname == "dt" || eltname == "fieldset" || eltname == "figcaption" || eltname == "figure" || eltname == "footer" || eltname == "form" || eltname == "h1" || eltname == "h2" || eltname == "h3" || eltname == "h4" || eltname == "h5" || eltname == "h6" || eltname == "header" || eltname == "hr" || eltname == "li" || eltname == "main" || eltname == "nav" || eltname == "noscript" || eltname == "ol" || eltname == "p" || eltname == "pre" || eltname == "section" || eltname == "table" || eltname == "tfoot" || eltname == "thead" || eltname == "tbody" || eltname == "tr" || eltname == "td" || eltname == "th" || eltname == "ul" || eltname == "video" {
 				newDir = modeVertial
 			} else {
 				newDir = modeHorizontal
