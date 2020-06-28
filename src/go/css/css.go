@@ -79,7 +79,7 @@ td, th          { display: table-cell }
 caption         { display: table-caption }
 th              { font-weight: bold; text-align: center }
 caption         { text-align: center }
-body            { margin: 0pt; font-family: sans-serif; font-size: 10pt; }
+body            { margin: 0pt; font-family: sans-serif; font-size: 10pt; line-height: 1.2; hyphens: auto; }
 h1              { font-size: 2em; margin: .67em 0 }
 h2              { font-size: 1.5em; margin: .75em 0 }
 h3              { font-size: 1.17em; margin: .83em 0 }
@@ -97,7 +97,7 @@ i, cite, em,
 var, address    { font-style: italic }
 pre, tt, code,
 kbd, samp       { font-family: monospace }
-pre             { white-space: pre }
+pre             { white-space: pre; margin: 1em 0px; }
 button, textarea,
 input, select   { display: inline-block }
 big             { font-size: 1.17em }
