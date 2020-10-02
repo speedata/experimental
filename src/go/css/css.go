@@ -353,7 +353,7 @@ func ParseHTMLFragment(htmltext, csstext string) (string, error) {
 }
 
 // Run returns a Lua tree
-func Run(tmpdir string, arguments []string) (string, error) {
+func Run(arguments []string) (string, error) {
 	var err error
 	curwd, err := os.Getwd()
 	if err != nil {

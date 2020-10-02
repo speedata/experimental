@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 
 	"css"
-	"ltx"
 )
 
 var (
@@ -20,34 +18,17 @@ func dothings() error {
 		os.Exit(0)
 	}
 
-	useSystemTemp := false
-	var tmpdir string
-	if useSystemTemp {
-		tmpdir, err := ioutil.TempDir("", "speedata")
-		if err != nil {
-			return err
-		}
-		defer os.RemoveAll(tmpdir)
-	} else {
-		dir, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		tmpdir = dir
-	}
-
-	str, err := css.Run(tmpdir, os.Args[1:])
+	str, err := css.Run(os.Args[1:])
 	if err != nil {
 		return err
 	}
 
-	fn := filepath.Join(tmpdir, "table.lua")
+	fn := "table.lua"
 
 	err = ioutil.WriteFile(fn, []byte(str), 0644)
 	if err != nil {
 		return err
 	}
-	ltx.Run(basedir, fn)
 	return nil
 }
 

@@ -1,28 +1,19 @@
-# Experimental typesetting repository
+# CSS parsing and Lua HTML DOM building
 
-This repository will contain some experiments with HTML, CSS and print.
-The aim is to create a prototype that shows a way to typeset CSS based XML/HTML documents with LuaTeX.
+This repository will contain some experiments with HTML, CSS DOM building for Lua.
+This is the base of the [speedata Publisher's](https://www.speedata.de/) HTML rendering mode.
 
-This might turn out as a waste of time, so don't bother having a closer look.
-
-## How it should work
-
-1. Take the most basic examples from https://print-css.rocks/ (lesson basic)
-1. Read the CSS files, read the HTML file parse the HTML tree (with the inline CSS)
-1. Apply the CSS rules to each node and dump the DOM as a Lua table
-1. Run LuaTeX with this table as an input file
-1. Typeset according the rules given in the tree
-
-
-## Steps to get this running
-
-Beware! This is an experiment, totally pre alpha, and you might find out that it was a waste of time. But anyhow, here it is:
 
 1. Get this repository (`git clone https://github.com/speedata/experimental.git`), `cd experimental`
-1. Update dependencies and compile with rake: `rake update`
+1. Update dependencies and compile with rake: `rake build`
 1. Run the software: `bin/sc samples/minimal.html`
 
-You need: [Go](https://golang.org/) >= version 1.11, [Rake](https://github.com/ruby/rake) and [LuaTeX](https://www.tug.org/texlive/) installed. Once this gets more mature, I will provide ready to run packages. (Actually the `Rakefile` is just provided for convenience, have a look inside it to find out how to compile the software without using Rake.)
+This creates a Lua table that is a representation of the parsed HTML with CSS applied
+
+You need: [Go](https://golang.org/) >= version 1.11 and [Rake](https://github.com/ruby/rake) installed.
+(Actually the `Rakefile` is just provided for convenience, have a look inside it to find out how to compile the software without using Rake.)
+
+You can try it out by installing the speedata Publisher, see the [HTML example](https://github.com/speedata/examples/tree/master/technical/html) as a starting point.
 
 
 ## Contact
