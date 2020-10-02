@@ -6,11 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"golang.org/x/net/html"
-
-	"internal/github-css/scanner"
-
 	"github.com/PuerkitoBio/goquery"
+	"github.com/speedata/css/scanner"
+	"golang.org/x/net/html"
 )
 
 type tokenstream []*scanner.Token
