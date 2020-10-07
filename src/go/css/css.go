@@ -222,10 +222,12 @@ func consumeBlock(toks tokenstream, inblock bool) sBlock {
 			case "{":
 				var nb sBlock
 				l := findClosingBrace(toks[i+1:])
-				if i+1 == l {
+				if l == 1 {
 					break
 				}
-				nb = consumeBlock(toks[i+1:i+l], true)
+				subblock := toks[i+1 : i+l]
+				// subblock is without the enclosing curly braces
+				nb = consumeBlock(subblock, true)
 				if toks[start].Type == scanner.AtKeyword {
 					nb.Name = toks[start].Value
 					b.ChildAtRules = append(b.ChildAtRules, &nb)
