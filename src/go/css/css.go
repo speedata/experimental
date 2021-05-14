@@ -35,6 +35,7 @@ type cssPage struct {
 // CSS has all the information
 type CSS struct {
 	document     *goquery.Document
+	finderfunc   Findfunc
 	Stylesheet   []sBlock
 	Fontfamilies map[string]FontFamily
 	Pages        map[string]cssPage
@@ -335,10 +336,17 @@ func (c *CSS) processAtRules() {
 	}
 }
 
+type Findfunc func(string) string
+
+func NewCssParser(f Findfunc) *CSS {
+	return &CSS{
+		finderfunc: f,
+	}
+}
+
 // ParseHTMLFragment takes the HTML text and the CSS text and returns a
 // Lua table as a string and perhaps an error.
-func ParseHTMLFragment(htmltext, csstext string) (string, error) {
-	c := CSS{}
+func (c *CSS) ParseHTMLFragment(htmltext, csstext string) (string, error) {
 
 	c.Stylesheet = append(c.Stylesheet, consumeBlock(parseCSSString(cssdefaults), false))
 	c.Stylesheet = append(c.Stylesheet, consumeBlock(parseCSSString(csstext), false))
@@ -353,19 +361,18 @@ func ParseHTMLFragment(htmltext, csstext string) (string, error) {
 }
 
 // Run returns a Lua tree
-func Run(arguments []string) (string, error) {
+func (c *CSS) Run(arguments []string) (string, error) {
 	var err error
 	curwd, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
-	c := CSS{}
 
 	c.Stylesheet = append(c.Stylesheet, consumeBlock(parseCSSString(cssdefaults), false))
 	htmlfilename := arguments[0]
 	// read additional stylesheets given on the command line
 	for i := 1; i < len(arguments); i++ {
-		block, err := parseCSSFile(arguments[i])
+		block, err := c.parseCSSFile(arguments[i])
 		if err != nil {
 			return "", err
 		}

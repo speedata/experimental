@@ -5,20 +5,24 @@ import (
 	"io/ioutil"
 	"os"
 
-	"css"
+	"experimental/css"
 )
 
 var (
 	basedir string
 )
 
+func filefinder(filename string) string {
+	return filename
+}
+
 func dothings() error {
 	if len(os.Args) < 2 {
 		fmt.Println("Run `main <file.html> [stylesheet.css ... ] `.")
 		os.Exit(0)
 	}
-
-	str, err := css.Run(os.Args[1:])
+	c := css.NewCssParser(filefinder)
+	str, err := c.Run(os.Args[1:])
 	if err != nil {
 		return err
 	}

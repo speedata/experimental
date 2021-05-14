@@ -505,7 +505,7 @@ func (c *CSS) readHTMLChunk(htmltext string) error {
 	var errcond error
 	c.document.Find(":root > head link").Each(func(i int, sel *goquery.Selection) {
 		if stylesheetfile, attExists := sel.Attr("href"); attExists {
-			block, err := parseCSSFile(stylesheetfile)
+			block, err := c.parseCSSFile(stylesheetfile)
 			if err != nil {
 				errcond = err
 			}
@@ -528,7 +528,7 @@ func (c *CSS) openHTMLFile(filename string) error {
 	var errcond error
 	c.document.Find(":root > head link").Each(func(i int, sel *goquery.Selection) {
 		if stylesheetfile, attExists := sel.Attr("href"); attExists {
-			block, err := parseCSSFile(stylesheetfile)
+			block, err := c.parseCSSFile(stylesheetfile)
 			if err != nil {
 				errcond = err
 			}
