@@ -12,17 +12,19 @@ var (
 	basedir string
 )
 
-func filefinder(filename string) string {
-	return filename
-}
+// func httpreader(filename string) (io.ReadCloser, error) {
+// 	fmt.Println("** file finder", filename)
+
+// 	return filename, nil
+// }
 
 func dothings() error {
 	if len(os.Args) < 2 {
-		fmt.Println("Run `main <file.html> [stylesheet.css ... ] `.")
+		fmt.Println("Run `main <file.html>`.")
 		os.Exit(0)
 	}
-	c := css.NewCssParser(filefinder)
-	str, err := c.Run(os.Args[1:])
+	c := css.NewCssParser()
+	str, err := c.Run(os.Args[1])
 	if err != nil {
 		return err
 	}

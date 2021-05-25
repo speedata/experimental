@@ -3,6 +3,8 @@ package css
 import (
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
+	"strings"
 
 	"github.com/speedata/css/scanner"
 )
@@ -11,9 +13,12 @@ func (c *CSS) parseCSSFile(filename string) (tokenstream, error) {
 	if filename == "" {
 		return nil, fmt.Errorf("parseCSSFile: no filename given")
 	}
-	fullpath := c.finderfunc(filename)
-
-	tokens, err := parseCSSBody(fullpath)
+	var tokens tokenstream
+	var err error
+	dir, fn := filepath.Split(filename)
+	c.dirstack = append(c.dirstack, dir)
+	dirs := strings.Join(c.dirstack, "")
+	tokens, err = parseCSSBody(filepath.Join(dirs, fn))
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +62,7 @@ func (c *CSS) parseCSSFile(filename string) (tokenstream, error) {
 			finalTokens = append(finalTokens, tok)
 		}
 	}
+	c.dirstack = c.dirstack[:len(c.dirstack)-1]
 	return finalTokens, nil
 }
 

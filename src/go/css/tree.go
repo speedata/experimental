@@ -3,7 +3,6 @@ package css
 import (
 	"fmt"
 	"io"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -203,11 +202,11 @@ func getFourValues(str string) map[string]string {
 // Change "margin: 1cm;" into "margin-left: 1cm; margin-right: 1cm; ..."
 func resolveAttributes(attrs []html.Attribute) map[string]string {
 	resolved := make(map[string]string)
-	// attribute resolving must be in order of appearance. For example the following border-left-style has no effect:
+	// attribute resolving must be in order of appearance.
+	// For example the following border-left-style has no effect:
 	//    border-left-style: dotted;
 	//    border-left: thick green;
 	// because the second line overrides the first line (style defaults to "none")
-
 	for _, attr := range attrs {
 		switch attr.Key {
 		case "margin":
@@ -237,10 +236,10 @@ func resolveAttributes(attrs []html.Attribute) map[string]string {
 			// This does not work with colors such as rgb(1 , 2 , 4) which have spaces in them
 			for _, part := range strings.Split(attr.Val, " ") {
 				for _, border := range toprightbottomleft {
-					if ok, str := isDimension(part); ok {
-						resolved["border-"+border+"-width"] = str
-					} else if ok, str := isBorderStyle(part); ok {
+					if ok, str := isBorderStyle(part); ok {
 						resolved["border-"+border+"-style"] = str
+					} else if ok, str := isDimension(part); ok {
+						resolved["border-"+border+"-width"] = str
 					} else {
 						resolved["border-"+border+"-color"] = part
 					}
@@ -280,6 +279,50 @@ func resolveAttributes(attrs []html.Attribute) map[string]string {
 			for _, loc := range toprightbottomleft {
 				resolved["border-"+loc+"-width"] = values[loc]
 			}
+		case "font":
+			fontstyle := "normal"
+			fontweight := "normal"
+
+			/*
+				it must include values for:
+					<font-size>
+					<font-family>
+				it may optionally include values for:
+					<font-style>
+					<font-variant>
+					<font-weight>
+					<font-stretch>
+					<line-height>
+				* font-style, font-variant and font-weight must precede font-size
+				* font-variant may only specify the values defined in CSS 2.1, that is normal and small-caps
+				* font-stretch may only be a single keyword value.
+				* line-height must immediately follow font-size, preceded by "/", like this: "16px/3"
+				* font-family must be the last value specified.
+			*/
+			val := attr.Val
+			fields := strings.Fields(val)
+			l := len(fields)
+			for idx, field := range fields {
+				if idx > l-3 {
+					if dimen.MatchString(field) || strings.Contains(field, "%") {
+						resolved["font-size"] = field
+					} else {
+						resolved["font-name"] = field
+					}
+				}
+			}
+			resolved["font-style"] = fontstyle
+			resolved["font-weight"] = fontweight
+		// font-stretch: ultra-condensed; extra-condensed; condensed; semi-condensed; normal; semi-expanded; expanded; extra-expanded; ultra-expanded;
+		case "text-decoration":
+			for _, part := range strings.Split(attr.Val, " ") {
+				if part == "none" || part == "underline" || part == "overline" || part == "line-through" {
+					resolved["text-decoration-line"] = part
+				} else if part == "solid" || part == "double" || part == "dotted" || part == "dashed" || part == "wavy" {
+					resolved["text-decoration-style"] = part
+				}
+			}
+
 		case "background":
 			// background-clip, background-color, background-image, background-origin, background-position, background-repeat, background-size, and background-attachment
 			for _, part := range strings.Split(attr.Val, " ") {
@@ -288,6 +331,9 @@ func resolveAttributes(attrs []html.Attribute) map[string]string {
 		default:
 			resolved[attr.Key] = attr.Val
 		}
+	}
+	if str, ok := resolved["text-decoration-line"]; ok && str != "none" {
+		resolved["text-decoration-style"] = "solid"
 	}
 	return resolved
 }
@@ -488,39 +534,64 @@ func (c *CSS) dumpFonts() {
 }
 
 func papersize(typ string) (string, string) {
-	switch typ {
-	case "a5":
-		return "148mm", "210mm"
+	typ = strings.ToLower(typ)
+	var width, height string
+	portrait := true
+	for i, e := range strings.Fields(typ) {
+		switch e {
+		case "portrait":
+			// good, nothing to do
+		case "landscape":
+			portrait = false
+		case "a5":
+			width = "148mm"
+			height = "210mm"
+		case "a4":
+			width = "210mm"
+			height = "297mm"
+		case "a3":
+			width = "297mm"
+			height = "420mm"
+		case "b5":
+			width = "176mm"
+			height = "250mm"
+		case "b4":
+			width = "250mm"
+			height = "353mm"
+		case "jis-b5":
+			width = "182mm"
+			height = "257mm"
+		case "jis-b4":
+			width = "257mm"
+			height = "364mm"
+		case "letter":
+			width = "8.5in"
+			height = "11in"
+		case "legal":
+			width = "8.5in"
+			height = "14in"
+		case "ledger":
+			width = "11in"
+			height = "17in"
+		default:
+			if i == 0 {
+				width = e
+				height = e
+			} else {
+				height = e
+			}
+		}
 	}
-	return "210mm", "297mm"
+
+	if portrait {
+		return width, height
+	}
+	return height, width
 }
 
 func (c *CSS) readHTMLChunk(htmltext string) error {
 	var err error
 	r := strings.NewReader(htmltext)
-	c.document, err = goquery.NewDocumentFromReader(r)
-	if err != nil {
-		return err
-	}
-	var errcond error
-	c.document.Find(":root > head link").Each(func(i int, sel *goquery.Selection) {
-		if stylesheetfile, attExists := sel.Attr("href"); attExists {
-			block, err := c.parseCSSFile(stylesheetfile)
-			if err != nil {
-				errcond = err
-			}
-			parsedStyles := consumeBlock(block, false)
-			c.Stylesheet = append(c.Stylesheet, parsedStyles)
-		}
-	})
-	return errcond
-}
-
-func (c *CSS) openHTMLFile(filename string) error {
-	r, err := os.Open(filename)
-	if err != nil {
-		return err
-	}
 	c.document, err = goquery.NewDocumentFromReader(r)
 	if err != nil {
 		return err
